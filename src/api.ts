@@ -5,6 +5,7 @@ import type {
   DeployTargets,
   DeployOptions,
   RecentCommits,
+  StepLogEntry,
   Deployment,
   NotificationPermission,
   Preferences,
@@ -52,6 +53,16 @@ export const listRecentCommits = (project: string, branch: string) =>
 export const listRecentDeployments = (project: string) =>
   invoke<Deployment[]>("list_recent_deployments", { project });
 
+export const listStepLogs = (project: string, deployment: string, step: string) =>
+  invoke<StepLogEntry[]>("list_step_logs", { project, deployment, step });
+
+export const abortDeployment = (project: string, identifier: string) =>
+  invoke<void>("abort_deployment", { project, identifier });
+
+/** Retries or rolls back a finished deployment; returns the resulting one. */
+export const redeploy = (watched: WatchedDeployment, action: "retry" | "rollback") =>
+  invoke<WatchedDeployment>("redeploy", { watched, action });
+
 export const listWatchedProjects = () => invoke<WatchedProject[]>("list_watched_projects");
 
 export const setProjectWatched = (permalink: string, name: string, watched: boolean) =>
@@ -79,6 +90,12 @@ export const onDeploymentUpdated = (
   handler: (watched: WatchedDeployment) => void,
 ): Promise<UnlistenFn> =>
   listen<WatchedDeployment>("deployment-updated", (event) => handler(event.payload));
+
+/** A notification was clicked: show that deployment. */
+export const onOpenDeployment = (
+  handler: (watched: WatchedDeployment) => void,
+): Promise<UnlistenFn> =>
+  listen<WatchedDeployment>("open-deployment", (event) => handler(event.payload));
 
 export const errorMessage = (error: unknown) =>
   typeof error === "string" ? error : error instanceof Error ? error.message : String(error);

@@ -3,8 +3,8 @@ use tauri::{AppHandle, State};
 
 use crate::credentials::{self, Credentials};
 use crate::deployhq::{
-    DeployHqClient, DeployOptions, DeployRequest, Deployment, Project, Server,
-    RecentCommits, ServerGroup,
+    DeployHqClient, DeployOptions, DeployRequest, Deployment, Project, RecentCommits, Server,
+    ServerGroup, StepLogEntry,
 };
 use crate::deployment_watcher::{self, WatchedDeployment};
 use crate::error::{AppError, AppResult};
@@ -56,7 +56,7 @@ pub async fn save_credentials(
         email: email.trim().to_string(),
         api_key,
     };
-    DeployHqClient::new(&state.http, &state.api_activity, &new_credentials)
+    DeployHqClient::new(&state.http, &state.api_health, &new_credentials)
         .list_projects()
         .await?;
     credentials::save(&new_credentials)?;
@@ -74,7 +74,7 @@ pub fn clear_credentials(state: State<'_, AppState>) -> AppResult<()> {
 #[tauri::command]
 pub async fn list_projects(state: State<'_, AppState>) -> AppResult<Vec<Project>> {
     let credentials = state.require_credentials()?;
-    let mut projects = DeployHqClient::new(&state.http, &state.api_activity, &credentials)
+    let mut projects = DeployHqClient::new(&state.http, &state.api_health, &credentials)
         .list_projects()
         .await?;
     projects.sort_by(|a, b| {
@@ -91,7 +91,7 @@ pub async fn list_deploy_targets(
     project: String,
 ) -> AppResult<DeployTargets> {
     let credentials = state.require_credentials()?;
-    let client = DeployHqClient::new(&state.http, &state.api_activity, &credentials);
+    let client = DeployHqClient::new(&state.http, &state.api_health, &credentials);
     let (server_groups, servers) = tokio::try_join!(
         client.list_server_groups(&project),
         client.list_servers(&project)
@@ -118,7 +118,7 @@ pub async fn trigger_deployment(
     options: DeployOptions,
 ) -> AppResult<Deployment> {
     let credentials = state.require_credentials()?;
-    let deployment = DeployHqClient::new(&state.http, &state.api_activity, &credentials)
+    let deployment = DeployHqClient::new(&state.http, &state.api_health, &credentials)
         .create_deployment(&DeployRequest {
             project: &project,
             target_identifier: &target_identifier,
@@ -135,6 +135,7 @@ pub async fn trigger_deployment(
             project_name,
             target_name,
             deployment: deployment.clone(),
+            failure_reason: None,
         },
         true,
     );
@@ -213,7 +214,7 @@ pub async fn list_recent_commits(
     branch: String,
 ) -> AppResult<RecentCommits> {
     let credentials = state.require_credentials()?;
-    DeployHqClient::new(&state.http, &state.api_activity, &credentials)
+    DeployHqClient::new(&state.http, &state.api_health, &credentials)
         .recent_commits(&project, &branch)
         .await
 }
@@ -224,8 +225,8 @@ pub async fn list_recent_deployments(
     project: String,
 ) -> AppResult<Vec<Deployment>> {
     let credentials = state.require_credentials()?;
-    DeployHqClient::new(&state.http, &state.api_activity, &credentials)
-        .list_recent_deployments(&project)
+    DeployHqClient::new(&state.http, &state.api_health, &credentials)
+        .list_recent_deployments(&project, 30)
         .await
 }
 
@@ -248,7 +249,7 @@ pub fn send_test_notification(app: AppHandle, state: State<'_, AppState>) {
     crate::tray::hide_main_window(&app);
     std::thread::spawn(move || {
         std::thread::sleep(std::time::Duration::from_secs(1));
-        notifications::show("DHQ Tray", "Notifications are working.", sound);
+        notifications::show("DHQ Tray", "Notifications are working.", sound, None);
     });
 }
 
@@ -260,4 +261,63 @@ pub fn open_notification_settings() -> AppResult<()> {
         .spawn()
         .map_err(|error| AppError::Other(format!("Could not open System Settings: {error}")))?;
     Ok(())
+}
+
+#[tauri::command]
+pub async fn list_step_logs(
+    state: State<'_, AppState>,
+    project: String,
+    deployment: String,
+    step: String,
+) -> AppResult<Vec<StepLogEntry>> {
+    let credentials = state.require_credentials()?;
+    DeployHqClient::new(&state.http, &state.api_health, &credentials)
+        .step_logs(&project, &deployment, &step)
+        .await
+}
+
+#[tauri::command]
+pub async fn abort_deployment(
+    state: State<'_, AppState>,
+    project: String,
+    identifier: String,
+) -> AppResult<()> {
+    let credentials = state.require_credentials()?;
+    DeployHqClient::new(&state.http, &state.api_health, &credentials)
+        .abort_deployment(&project, &identifier)
+        .await
+}
+
+/// What to redo with a finished deployment.
+#[derive(serde::Deserialize)]
+#[serde(rename_all = "snake_case")]
+pub enum Redeploy {
+    /// Run it again as it was.
+    Retry,
+    /// Bring the servers back to its state, as a new deployment.
+    Rollback,
+}
+
+/// Retries or rolls back a deployment and follows the resulting one.
+#[tauri::command]
+pub async fn redeploy(
+    app: AppHandle,
+    state: State<'_, AppState>,
+    watched: WatchedDeployment,
+    action: Redeploy,
+) -> AppResult<WatchedDeployment> {
+    let credentials = state.require_credentials()?;
+    let client = DeployHqClient::new(&state.http, &state.api_health, &credentials);
+    let identifier = &watched.deployment.identifier;
+    let deployment = match action {
+        Redeploy::Retry => client.retry_deployment(&watched.project, identifier).await?,
+        Redeploy::Rollback => client.rollback_deployment(&watched.project, identifier).await?,
+    };
+    let redeployed = WatchedDeployment {
+        deployment,
+        failure_reason: None,
+        ..watched
+    };
+    deployment_watcher::watch(app, redeployed.clone(), true);
+    Ok(redeployed)
 }

@@ -3,7 +3,10 @@ use tauri::menu::{Menu, MenuItem};
 use tauri::tray::{MouseButton, MouseButtonState, TrayIconBuilder, TrayIconEvent};
 use tauri::{App, AppHandle, LogicalPosition, Manager, Monitor, WebviewWindow};
 
+use std::sync::atomic::Ordering;
+
 use crate::running_deployments_poller;
+use crate::state::AppState;
 
 pub const MAIN_WINDOW_LABEL: &str = "main";
 const TRAY_ID: &str = "main";
@@ -44,18 +47,37 @@ fn idle_icon() -> Image<'static> {
     tauri::include_image!("icons/tray-icon.png")
 }
 
-fn busy_icon() -> Image<'static> {
-    tauri::include_image!("icons/tray-icon-busy.png")
+fn deploying_icon() -> Image<'static> {
+    tauri::include_image!("icons/tray-icon-deploying.png")
 }
 
-/// Swaps the tray icon while DeployHQ requests are in flight.
-pub fn set_busy(app: &AppHandle, is_busy: bool) {
-    let Some(tray) = app.tray_by_id(TRAY_ID) else {
-        return;
+fn failed_icon() -> Image<'static> {
+    tauri::include_image!("icons/tray-icon-failed.png")
+}
+
+/// Shows whether a deployment failed unseen, one is running, or all is quiet.
+/// Call whenever tracked deployments or the unseen-failure flag change.
+pub fn refresh_icon(app: &AppHandle) {
+    let state = app.state::<AppState>();
+    let has_unseen_failure = state.has_unseen_failure.load(Ordering::SeqCst);
+    // The lock is released before touching the tray, which waits on the main thread.
+    let is_deploying = state
+        .tracked_deployments
+        .lock()
+        .unwrap()
+        .values()
+        .any(|watched| !watched.deployment.is_finished());
+    let icon = if has_unseen_failure {
+        failed_icon()
+    } else if is_deploying {
+        deploying_icon()
+    } else {
+        idle_icon()
     };
-    let icon = if is_busy { busy_icon() } else { idle_icon() };
-    // Setting icon and template flag separately renders twice and flickers on macOS.
-    let _ = tray.set_icon_with_as_template(Some(icon), true);
+    if let Some(tray) = app.tray_by_id(TRAY_ID) {
+        // Setting icon and template flag separately renders twice and flickers on macOS.
+        let _ = tray.set_icon_with_as_template(Some(icon), true);
+    }
 }
 
 struct TrayIconBounds {
@@ -170,6 +192,14 @@ pub fn show_main_window(app: &AppHandle) {
     let Some(window) = app.get_webview_window(MAIN_WINDOW_LABEL) else {
         return;
     };
+    // Opening the panel counts as seeing any failure.
+    app.state::<AppState>()
+        .has_unseen_failure
+        .store(false, Ordering::SeqCst);
+    refresh_icon(app);
+    if window.is_visible().unwrap_or(false) {
+        return;
+    }
     running_deployments_poller::mark_active(app);
     move_window_below_tray_icon(app, &window);
     show_with_fade_in(&window);

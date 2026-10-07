@@ -80,8 +80,12 @@ pub fn permission() -> NotificationPermission {
     NotificationPermission::Unknown
 }
 
+/// Runs when the user clicks a notification.
+pub type OnClick = Box<dyn FnOnce() + Send + 'static>;
+
 /// Shows a notification; `sound` is a macOS system sound name (e.g. "Glass").
-pub fn show(title: &str, body: &str, sound: Option<&str>) {
+/// `on_click` only works with the modern API (not the AppleScript fallback).
+pub fn show(title: &str, body: &str, sound: Option<&str>, on_click: Option<OnClick>) {
     #[cfg(target_os = "macos")]
     if !IS_MODERN_API_AUTHORIZED.load(Ordering::SeqCst) {
         show_with_apple_script(title, body, sound);
@@ -93,11 +97,24 @@ pub fn show(title: &str, body: &str, sound: Option<&str>) {
             .title(title)
             .message(body)
             .maybe_sound(sound);
-        // The blocking sender is safe on any thread and does not depend on
-        // what the main thread is doing at that moment.
-        std::thread::spawn(move || {
-            if let Err(error) = mac_usernotifications::blocking::send(notification) {
-                eprintln!("Could not show notification: {error}");
+        // The async API waits for macOS without requiring the main run loop to
+        // be idle at that instant (the check that made notify-rust drop them).
+        tauri::async_runtime::spawn(async move {
+            let handle = match notification.send().await {
+                Ok(handle) => handle,
+                Err(error) => {
+                    eprintln!("Could not show notification: {error}");
+                    return;
+                }
+            };
+            let Some(on_click) = on_click else {
+                return;
+            };
+            // Resolves when the user interacts; the click itself is the default action.
+            if let Ok(response) = handle.response().await {
+                if response.is_default_action() {
+                    on_click();
+                }
             }
         });
     }
@@ -143,7 +160,7 @@ pub fn run_self_test_if_requested() {
                 mac_usernotifications::get_delivered_notification_ids(),
             )
             .len();
-            show("DHQ Tray", "Notification self-test", Some("Glass"));
+            show("DHQ Tray", "Notification self-test", Some("Glass"), None);
             std::thread::sleep(std::time::Duration::from_secs(3));
             let after = mac_usernotifications::block_on(
                 mac_usernotifications::get_delivered_notification_ids(),

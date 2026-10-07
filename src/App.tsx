@@ -1,5 +1,5 @@
 import { useEffect, useState } from "react";
-import { errorMessage, getSettings, hideWindow, quitApp } from "./api";
+import { errorMessage, getSettings, hideWindow, onOpenDeployment, quitApp } from "./api";
 import { useKeyDown } from "./hooks/useKeyDown";
 import { navigateWithTransition, type NavigationDirection } from "./navigationTransition";
 import type { DeployTarget, Project, SettingsSummary, WatchedDeployment } from "./types";
@@ -82,6 +82,16 @@ export default function App() {
     reloadSettings();
   }, []);
 
+  // A notification was clicked: Rust opened the panel, show that deployment.
+  useEffect(() => {
+    const unlistenPromise = onOpenDeployment((watched) =>
+      navigate("forward", { name: "deployment", watched }),
+    );
+    return () => {
+      unlistenPromise.then((unlisten) => unlisten());
+    };
+  }, []);
+
   if (settingsError) {
     return (
       <div className="screen centered-message">
@@ -122,9 +132,12 @@ export default function App() {
   if (route.name === "deployment") {
     return (
       <DeploymentView
+        // A new deployment (e.g. after a retry) starts with fresh state.
+        key={route.watched.deployment.identifier}
         account={settings.account}
         watched={route.watched}
         onBack={() => navigate("back", { name: "projects" })}
+        onShowDeployment={(watched) => navigate("forward", { name: "deployment", watched })}
       />
     );
   }

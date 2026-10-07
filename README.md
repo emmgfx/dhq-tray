@@ -8,8 +8,12 @@ macOS menu bar app for quick access to [DeployHQ](https://www.deployhq.com) depl
 - Shows each project's server groups and servers with their branch and deployed revision.
 - Deploys the latest commit of the target's preferred branch, after an inline confirmation.
 - Watched projects (bell icon in the project list): their running deployments are checked continuously, including ones started outside the app: every 20 s for 10 minutes after the tray is opened, every 2 minutes otherwise.
-- Tracks deployments (started from the app or found while polling, whoever started them) and notifies when they start and when they finish. Deployments already running when the app launches are listed but not announced.
-- The tray icon shows a dot while API requests are in flight.
+- Tracks deployments (started from the app or found while polling, whoever started them) and notifies when they start and when they finish, including ones that started and ended between two polls. Tracking survives restarts and updates.
+- Failed deployments show why (DeployHQ's log summary or the failing step's log) in the notification and in the detail, where the step log can be opened.
+- From a deployment's detail: abort it while running, retry it if it failed, or roll back to it.
+- Clicking a notification opens that deployment's detail.
+- If DeployHQ rate limits or is busy (429/503), background polling pauses and backs off (30 s up to 15 min).
+- The tray icon shows a dot while a deployment is running and a "!" when one failed since the panel was last opened.
 - Polling pauses while there has been no keyboard/mouse input for 5 minutes (or the Mac sleeps) and resumes when you are back.
 - Project and server lists are cached and shown instantly, then refreshed in the background.
 - Deploying opens a screen with the summary, the pending commits (between the target's deployed revision and the branch head) and the options: copy config files, run build commands and use build cache (preselected), plus deploy all files (no start revision, full upload). The revision shown is the one deployed.
@@ -36,12 +40,21 @@ On first launch, click the menu bar icon and enter the account permalink (`<acco
 - `src-tauri/src/running_deployments_poller.rs`: continuous poller over watched projects; active pace after the tray opens, slow pace otherwise, paused while away.
 - `src-tauri/src/watched_projects.rs`: watched projects, stored in the app config directory.
 - `src-tauri/src/tray.rs`: menu bar icon; left click toggles the popover window, right click shows the Quit menu.
-- `src-tauri/src/api_activity.rs`: counts in-flight API requests; the tray icon switches to `icons/tray-icon-busy.png` while any is running.
+- `src-tauri/src/api_health.rs`: backoff shared by background polling when DeployHQ throttles.
 - `src/`: React UI.
 
-Tray icons are rendered from Lucide's `rocket` with `npm run icons:tray`.
+App and tray icons are rendered from Lucide's `rocket` with `npm run icons`.
 
 API reference: <https://api.deployhq.com/docs>
+
+## Tests
+
+```sh
+npm test                                          # frontend (Vitest)
+cargo test --manifest-path src-tauri/Cargo.toml   # backend
+```
+
+CI (`.github/workflows/ci.yml`) runs both and builds the frontend on every push.
 
 ## Keyboard shortcuts
 

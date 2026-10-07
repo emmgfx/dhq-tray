@@ -9,7 +9,7 @@ use std::time::{Duration, SystemTime};
 
 use tauri::{AppHandle, Manager};
 
-use crate::deployhq::DeployHqClient;
+use crate::deployhq::{DeployHqClient, Deployment};
 use crate::deployment_watcher::{self, WatchedDeployment};
 use crate::state::AppState;
 use crate::user_activity;
@@ -23,14 +23,12 @@ const ACTIVE_DURATION: Duration = Duration::from_secs(10 * 60);
 pub fn start(app: &AppHandle) {
     let app = app.clone();
     tauri::async_runtime::spawn(async move {
-        // Deployments already running at launch are listed, not announced.
-        let mut is_initial_poll = true;
         loop {
-            if !user_activity::is_user_away() {
-                poll_watched_projects(&app, is_initial_poll).await;
-                is_initial_poll = false;
-            }
             let state = app.state::<AppState>();
+            // Paused while the user is away or DeployHQ is throttling requests.
+            if !user_activity::is_user_away() && !state.api_health.is_backing_off() {
+                poll_watched_projects(&app).await;
+            }
             let interval = if is_active(&state) {
                 ACTIVE_POLL_INTERVAL
             } else {
@@ -61,30 +59,124 @@ fn is_active(state: &AppState) -> bool {
         .is_some_and(|active_until| SystemTime::now() < active_until)
 }
 
-async fn poll_watched_projects(app: &AppHandle, is_initial_poll: bool) {
+/// How many of each project's latest deployments are checked per poll.
+const RECENT_DEPLOYMENTS_PER_POLL: u32 = 10;
+
+/// What to do with a deployment seen in a project's recent list.
+#[derive(Debug, PartialEq, Eq)]
+enum Sighting {
+    /// Already known, or part of the first look at the project: nothing to report.
+    Ignore,
+    /// New and running: follow it, announcing its start unless it is the first look.
+    Track { announce_start: bool },
+    /// New and already finished (it started and ended between polls): report how it ended.
+    AnnounceFinished,
+}
+
+fn classify(
+    deployment: &Deployment,
+    is_known: bool,
+    is_first_look_at_project: bool,
+) -> Sighting {
+    match (is_known, deployment.is_finished()) {
+        (true, _) => Sighting::Ignore,
+        (false, false) => Sighting::Track {
+            announce_start: !is_first_look_at_project,
+        },
+        (false, true) if is_first_look_at_project => Sighting::Ignore,
+        (false, true) => Sighting::AnnounceFinished,
+    }
+}
+
+async fn poll_watched_projects(app: &AppHandle) {
     let state = app.state::<AppState>();
     let Ok(Some(credentials)) = state.credentials() else {
         return;
     };
-    let client = DeployHqClient::new(&state.http, &state.api_activity, &credentials);
+    let client = DeployHqClient::new(&state.http, &state.api_health, &credentials);
 
     for project in state.watched_projects() {
-        let deployments = match client.list_running_deployments(&project.permalink).await {
+        let deployments = match client
+            .list_recent_deployments(&project.permalink, RECENT_DEPLOYMENTS_PER_POLL)
+            .await
+        {
             Ok(deployments) => deployments,
             Err(error) => {
-                eprintln!("Polling running deployments of {} failed: {error}", project.permalink);
+                eprintln!("Polling deployments of {} failed: {error}", project.permalink);
                 continue;
             }
         };
+        // A project's first look (at launch or when its bell is turned on) only
+        // records what is there, so old deployments are not announced.
+        let is_first_look = state
+            .polled_projects
+            .lock()
+            .unwrap()
+            .insert(project.permalink.clone());
+
         for deployment in deployments {
+            let identifier = deployment.identifier.clone();
+            let is_tracked = state
+                .tracked_deployments
+                .lock()
+                .unwrap()
+                .contains_key(&identifier);
+            let was_seen = !state.seen_deployments.lock().unwrap().insert(identifier);
             let watched = WatchedDeployment {
                 project: project.permalink.clone(),
                 project_name: project.name.clone(),
                 target_name: deployment.target_name(),
                 deployment,
+                failure_reason: None,
             };
-            // Already-tracked ones (e.g. started from the app) are ignored.
-            deployment_watcher::watch(app.clone(), watched, !is_initial_poll);
+            match classify(&watched.deployment, is_tracked || was_seen, is_first_look) {
+                Sighting::Ignore => {}
+                Sighting::Track { announce_start } => {
+                    deployment_watcher::watch(app.clone(), watched, announce_start);
+                }
+                Sighting::AnnounceFinished => {
+                    deployment_watcher::announce_finished(app, watched).await;
+                }
+            }
         }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    fn deployment(status: &str) -> Deployment {
+        Deployment {
+            status: status.to_owned(),
+            ..Default::default()
+        }
+    }
+
+    #[test]
+    fn first_look_tracks_running_silently_and_skips_finished() {
+        assert_eq!(
+            classify(&deployment("running"), false, true),
+            Sighting::Track { announce_start: false }
+        );
+        assert_eq!(classify(&deployment("completed"), false, true), Sighting::Ignore);
+    }
+
+    #[test]
+    fn new_deployments_after_first_look_are_reported() {
+        assert_eq!(
+            classify(&deployment("pending"), false, false),
+            Sighting::Track { announce_start: true }
+        );
+        assert_eq!(
+            classify(&deployment("failed"), false, false),
+            Sighting::AnnounceFinished
+        );
+    }
+
+    #[test]
+    fn known_deployments_are_ignored() {
+        assert_eq!(classify(&deployment("running"), true, false), Sighting::Ignore);
+        assert_eq!(classify(&deployment("completed"), true, false), Sighting::Ignore);
     }
 }

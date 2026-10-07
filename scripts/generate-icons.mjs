@@ -18,17 +18,32 @@ function renderPng(svg, widthPx, fileName) {
 }
 
 // Tray: macOS template images, black on transparent, 22pt tall (44px @2x).
+// Badges sit in the bottom-right corner; a gap is cut around them so they do
+// not merge with the rocket's strokes.
 const TRAY_ICON_SIZE_PX = 44;
 const trayRocketSvg = rocketSvg.replaceAll("currentColor", "#000");
-// Marks API activity in the empty bottom-right corner of the rocket.
-const activityDot = '<circle cx="19.5" cy="19.5" r="3" fill="#000" stroke="none" />';
+const withBadge = (badge) => {
+  const rocketStart = trayRocketSvg.indexOf(">", trayRocketSvg.indexOf("<svg")) + 1;
+  const rocketEnd = trayRocketSvg.indexOf("</svg>");
+  return `${trayRocketSvg.slice(0, rocketStart)}
+    <mask id="badge-gap">
+      <rect width="24" height="24" fill="#fff" />
+      <circle cx="19" cy="18.8" r="5.3" fill="#000" />
+    </mask>
+    <g mask="url(#badge-gap)">${trayRocketSvg.slice(rocketStart, rocketEnd)}</g>
+    ${badge}
+  </svg>`;
+};
+// A deployment is running.
+const deployingBadge = '<circle cx="19" cy="18.8" r="3.2" fill="#000" stroke="none" />';
+// A deployment failed and has not been seen yet: a bold "!".
+const failedBadge = `
+  <rect x="18" y="13.6" width="2.4" height="6" rx="1.2" fill="#000" />
+  <circle cx="19.2" cy="21.9" r="1.3" fill="#000" />`;
 
 renderPng(trayRocketSvg, TRAY_ICON_SIZE_PX, "tray-icon.png");
-renderPng(
-  trayRocketSvg.replace("</svg>", `${activityDot}</svg>`),
-  TRAY_ICON_SIZE_PX,
-  "tray-icon-busy.png",
-);
+renderPng(withBadge(deployingBadge), TRAY_ICON_SIZE_PX, "tray-icon-deploying.png");
+renderPng(withBadge(failedBadge), TRAY_ICON_SIZE_PX, "tray-icon-failed.png");
 
 // App icon: macOS icon grid (824px rounded square on a 1024px canvas).
 // `tauri icon` derives every bundle size from this file.

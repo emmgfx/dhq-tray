@@ -46,11 +46,20 @@ export interface DeploymentServer {
 }
 
 export interface DeploymentStep {
+  identifier: string | null;
   stage: string | null;
   description: string | null;
   status: string | null;
   total_items: number | string | null;
   completed_items: number | string | null;
+  /** Whether DeployHQ has log entries for this step. */
+  logs: boolean;
+}
+
+export interface StepLogEntry {
+  message: string | null;
+  detail: string | null;
+  type: string | null;
 }
 
 export interface Deployment {
@@ -69,6 +78,7 @@ export interface Deployment {
     duration: number | null;
   };
   steps: DeploymentStep[];
+  log_summary: string | null;
 }
 
 /** Mirrors DeployOptions in src-tauri/src/deployhq.rs. */
@@ -112,6 +122,8 @@ export interface WatchedDeployment {
   project_name: string;
   target_name: string;
   deployment: Deployment;
+  /** Why it failed, once known. */
+  failure_reason: string | null;
 }
 
 /** A server or server group, normalized for the deploy list. */

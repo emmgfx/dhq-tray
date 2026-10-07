@@ -7,7 +7,7 @@ use reqwest::{header, Client, Method, RequestBuilder, Response, StatusCode};
 use serde::{de::DeserializeOwned, Deserialize, Serialize};
 use serde_json::json;
 
-use crate::api_activity::ApiActivity;
+use crate::api_health::ApiHealth;
 use crate::credentials::Credentials;
 use crate::error::{AppError, AppResult};
 
@@ -82,12 +82,24 @@ pub struct DeploymentServer {
 #[derive(Debug, Clone, Default, Serialize, Deserialize)]
 #[serde(default)]
 pub struct DeploymentStep {
+    pub identifier: Option<String>,
     pub stage: Option<String>,
     pub description: Option<String>,
     pub status: Option<String>,
     // Documented as strings but kept raw in case the API sends numbers.
     pub total_items: serde_json::Value,
     pub completed_items: serde_json::Value,
+    /// Whether DeployHQ has log entries for this step.
+    pub logs: bool,
+}
+
+#[derive(Debug, Clone, Default, Serialize, Deserialize)]
+#[serde(default)]
+pub struct StepLogEntry {
+    pub message: Option<String>,
+    pub detail: Option<String>,
+    #[serde(rename = "type")]
+    pub kind: Option<String>,
 }
 
 #[derive(Debug, Clone, Default, Serialize, Deserialize)]
@@ -108,6 +120,7 @@ pub struct Deployment {
     pub timestamps: DeploymentTimestamps,
     #[serde(deserialize_with = "null_as_default")]
     pub steps: Vec<DeploymentStep>,
+    pub log_summary: Option<String>,
 }
 
 fn seconds_from_number_or_string<'de, D>(deserializer: D) -> Result<Option<f64>, D::Error>
@@ -206,15 +219,15 @@ pub struct DeployRequest<'a> {
 
 pub struct DeployHqClient<'a> {
     http: &'a Client,
-    activity: &'a ApiActivity,
+    health: &'a ApiHealth,
     credentials: &'a Credentials,
 }
 
 impl<'a> DeployHqClient<'a> {
-    pub fn new(http: &'a Client, activity: &'a ApiActivity, credentials: &'a Credentials) -> Self {
+    pub fn new(http: &'a Client, health: &'a ApiHealth, credentials: &'a Credentials) -> Self {
         Self {
             http,
-            activity,
+            health,
             credentials,
         }
     }
@@ -228,14 +241,13 @@ impl<'a> DeployHqClient<'a> {
     }
 
     async fn send<T: DeserializeOwned>(&self, request: RequestBuilder) -> AppResult<T> {
-        /// DeployHQ answers 503 with `Retry-After` while it is busy (e.g. updating a
-        /// repository); reads are retried, honoring it up to this many attempts.
+        /// DeployHQ answers 503 (busy, e.g. updating a repository) or 429 (rate
+        /// limit) with `Retry-After`; reads are retried, honoring it, up to this
+        /// many attempts. If it persists, `ApiHealth` pauses background polling.
         const MAX_ATTEMPTS: u32 = 3;
         const DEFAULT_RETRY_DELAY: Duration = Duration::from_secs(2);
         const MAX_RETRY_DELAY: Duration = Duration::from_secs(10);
 
-        // Held until the body is read, so the tray shows the whole round trip.
-        let _activity = self.activity.track();
         let request = request.build()?;
         // Only reads are safe to repeat; a failed POST could still have been applied.
         let is_retryable = request.method() == Method::GET;
@@ -255,7 +267,7 @@ impl<'a> DeployHqClient<'a> {
                     response.headers().get(header::RETRY_AFTER),
                 );
             }
-            if response.status() != StatusCode::SERVICE_UNAVAILABLE
+            if !is_throttled(response.status())
                 || !is_retryable
                 || attempt == MAX_ATTEMPTS
             {
@@ -269,9 +281,11 @@ impl<'a> DeployHqClient<'a> {
         };
 
         let status = response.status();
-        if status == StatusCode::SERVICE_UNAVAILABLE {
+        if is_throttled(status) {
+            self.health.record_throttled(retry_after(&response));
             return Err(AppError::Unavailable);
         }
+        self.health.record_success();
         if status == StatusCode::UNAUTHORIZED {
             return Err(AppError::Unauthorized);
         }
@@ -346,21 +360,49 @@ impl<'a> DeployHqClient<'a> {
     }
 
     /// Most recent deployments of the project, newest first (first page only).
-    pub async fn list_recent_deployments(&self, project: &str) -> AppResult<Vec<Deployment>> {
-        const PAGE_SIZE: &str = "30";
+    pub async fn list_recent_deployments(
+        &self,
+        project: &str,
+        page_size: u32,
+    ) -> AppResult<Vec<Deployment>> {
         let path = format!("/projects/{project}/deployments");
         let page: DeploymentPage = self
-            .send(self.request(Method::GET, &path).query(&[("per_page", PAGE_SIZE)]))
+            .send(self.request(Method::GET, &path).query(&[("per_page", page_size)]))
             .await?;
         Ok(page.records)
     }
 
-    pub async fn list_running_deployments(&self, project: &str) -> AppResult<Vec<Deployment>> {
-        let path = format!("/projects/{project}/deployments");
-        let page: DeploymentPage = self
-            .send(self.request(Method::GET, &path).query(&[("currently_running", "1")]))
-            .await?;
-        Ok(page.records)
+    pub async fn step_logs(
+        &self,
+        project: &str,
+        deployment: &str,
+        step: &str,
+    ) -> AppResult<Vec<StepLogEntry>> {
+        let path = format!("/projects/{project}/deployments/{deployment}/steps/{step}/logs");
+        self.send(self.request(Method::GET, &path)).await
+    }
+
+    pub async fn abort_deployment(&self, project: &str, identifier: &str) -> AppResult<()> {
+        let path = format!("/projects/{project}/deployments/{identifier}/abort");
+        self.send::<serde_json::Value>(self.request(Method::POST, &path))
+            .await
+            .map(|_| ())
+    }
+
+    /// Re-queues a finished deployment (DeployHQ resets and reruns it).
+    pub async fn retry_deployment(&self, project: &str, identifier: &str) -> AppResult<Deployment> {
+        let path = format!("/projects/{project}/deployments/{identifier}/retry");
+        self.send(self.request(Method::POST, &path)).await
+    }
+
+    /// Creates a new deployment that brings the servers back to this deployment's state.
+    pub async fn rollback_deployment(
+        &self,
+        project: &str,
+        identifier: &str,
+    ) -> AppResult<Deployment> {
+        let path = format!("/projects/{project}/deployments/{identifier}/rollback");
+        self.send(self.request(Method::POST, &path)).await
     }
 
     pub async fn create_deployment(&self, deploy: &DeployRequest<'_>) -> AppResult<Deployment> {
@@ -387,6 +429,10 @@ impl<'a> DeployHqClient<'a> {
         )
         .await
     }
+}
+
+fn is_throttled(status: StatusCode) -> bool {
+    status == StatusCode::SERVICE_UNAVAILABLE || status == StatusCode::TOO_MANY_REQUESTS
 }
 
 /// `Retry-After` in seconds. Other forms (an HTTP date) fall back to the default delay.

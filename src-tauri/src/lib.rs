@@ -1,4 +1,4 @@
-mod api_activity;
+mod api_health;
 mod commands;
 mod config_store;
 mod credentials;
@@ -43,8 +43,8 @@ pub fn run() {
                 eprintln!("Could not load preferences: {error}");
                 Default::default()
             }));
-            state.api_activity.attach(app.handle().clone());
             tray::setup(app)?;
+            deployment_watcher::resume_saved(app.handle());
             running_deployments_poller::start(app.handle());
             notifications::request_permission();
             notifications::run_self_test_if_requested();
@@ -84,6 +84,9 @@ pub fn run() {
             commands::open_notification_settings,
             commands::list_recent_commits,
             commands::list_recent_deployments,
+            commands::list_step_logs,
+            commands::abort_deployment,
+            commands::redeploy,
         ])
         .build(tauri::generate_context!())
         .expect("error while building tauri application")

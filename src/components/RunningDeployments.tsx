@@ -58,33 +58,41 @@ export function RunningDeployments({ onSelectDeployment }: RunningDeploymentsPro
     <section>
       <h2 className="section-title">Running deployments</h2>
       <ul className="grouped-list">
-        {deployments.map(({ project, project_name, target_name, deployment }) => (
-          <li key={deployment.identifier} className={`status-${deployment.status}`}>
-            <button
-              className="grouped-list-row"
-              onClick={() => onSelectDeployment({ project, project_name, target_name, deployment })}
-              data-nav-item
-            >
-              <DeploymentStatusIndicator deployment={deployment} />
-              <span className="list-row-main">
-                <span className="list-row-title">{project_name}</span>
-                <span className="list-row-subtitle">
-                  {deployment.branch ?? "?"} @ {shortRevision(deployment.end_revision.ref)} →{" "}
-                  {target_name}
-                  {deployment.deployer && ` · ${deployment.deployer}`}
-                </span>
-                {isDeploymentInProgress(deployment) && currentStepLabel(deployment) && (
-                  <span className="list-row-subtitle current-step">
-                    {currentStepLabel(deployment)}
+        {deployments.map((watched) => {
+          const { project_name, target_name, deployment } = watched;
+          return (
+            <li key={deployment.identifier} className={`status-${deployment.status}`}>
+              <button
+                className="grouped-list-row"
+                onClick={() => onSelectDeployment(watched)}
+                data-nav-item
+              >
+                <DeploymentStatusIndicator deployment={deployment} />
+                <span className="list-row-main">
+                  <span className="list-row-title">{project_name}</span>
+                  <span className="list-row-subtitle">
+                    {deployment.branch ?? "?"} @ {shortRevision(deployment.end_revision.ref)} →{" "}
+                    {target_name}
+                    {deployment.deployer && ` · ${deployment.deployer}`}
                   </span>
-                )}
-              </span>
-              <span className="status-pill">
-                {deploymentStatusLabel(deployment)} {deploymentTimeLabel(deployment, now)}
-              </span>
-            </button>
-          </li>
-        ))}
+                  {isDeploymentInProgress(deployment) && currentStepLabel(deployment) && (
+                    <span className="list-row-subtitle current-step">
+                      {currentStepLabel(deployment)}
+                    </span>
+                  )}
+                  {watched.failure_reason && (
+                    <span className="list-row-subtitle current-step">
+                      {watched.failure_reason}
+                    </span>
+                  )}
+                </span>
+                <span className="status-pill">
+                  {deploymentStatusLabel(deployment)} {deploymentTimeLabel(deployment, now)}
+                </span>
+              </button>
+            </li>
+          );
+        })}
       </ul>
     </section>
   );

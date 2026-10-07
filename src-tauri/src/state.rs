@@ -1,10 +1,11 @@
-use std::collections::HashMap;
+use std::collections::{HashMap, HashSet};
+use std::sync::atomic::AtomicBool;
 use std::sync::Mutex;
 use std::time::SystemTime;
 
 use reqwest::Client;
 
-use crate::api_activity::ApiActivity;
+use crate::api_health::ApiHealth;
 use crate::credentials::{self, Credentials};
 use crate::deployment_watcher::WatchedDeployment;
 use crate::error::{AppError, AppResult};
@@ -13,7 +14,7 @@ use crate::watched_projects::WatchedProject;
 
 pub struct AppState {
     pub http: Client,
-    pub api_activity: ApiActivity,
+    pub api_health: ApiHealth,
     // Cached copy of the Keychain entry so each API call does not hit the Keychain.
     // Outer `None` means not read yet (or the last read failed), so it is retried.
     credentials: Mutex<Option<Option<Credentials>>>,
@@ -25,6 +26,12 @@ pub struct AppState {
     pub poller_active_until: Mutex<Option<SystemTime>>,
     /// Wakes the poller early (when the tray is opened).
     pub poller_wakeup: tokio::sync::Notify,
+    /// Deployments the poller has already seen, so each is reported once.
+    pub seen_deployments: Mutex<HashSet<String>>,
+    /// Watched projects polled at least once (their first look is silent).
+    pub polled_projects: Mutex<HashSet<String>>,
+    /// A deployment failed since the panel was last opened (tray icon badge).
+    pub has_unseen_failure: AtomicBool,
 }
 
 impl AppState {
@@ -34,13 +41,16 @@ impl AppState {
                 .user_agent(concat!("dhq-tray/", env!("CARGO_PKG_VERSION")))
                 .build()
                 .expect("failed to build HTTP client"),
-            api_activity: ApiActivity::default(),
+            api_health: ApiHealth::default(),
             credentials: Mutex::default(),
             watched_projects: Mutex::default(),
             preferences: Mutex::default(),
             tracked_deployments: Mutex::default(),
             poller_active_until: Mutex::default(),
             poller_wakeup: tokio::sync::Notify::new(),
+            seen_deployments: Mutex::default(),
+            polled_projects: Mutex::default(),
+            has_unseen_failure: AtomicBool::new(false),
         }
     }
 

@@ -317,6 +317,38 @@ input {
   color: var(--color-text-secondary);
 }
 
+.step-log {
+  max-height: 180px;
+  margin: 0 12px 10px 36px;
+  padding: 8px;
+  overflow: auto;
+  border-radius: 6px;
+  background: var(--color-surface-hover);
+  font-family: ui-monospace, "SF Mono", Menlo, monospace;
+  font-size: 10.5px;
+  line-height: 1.45;
+  white-space: pre-wrap;
+  word-break: break-word;
+  user-select: text;
+}
+
+.failure-row {
+  align-items: flex-start;
+}
+
+.failure-reason {
+  min-width: 0;
+  color: var(--color-danger);
+  text-align: right;
+  user-select: text;
+}
+
+.confirm-row {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
 .screen-footer {
   padding: 10px;
 }

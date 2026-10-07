@@ -8,7 +8,7 @@ pub enum AppError {
     Unauthorized,
     #[error("Not allowed: the API key is read-only or your DeployHQ user lacks permission")]
     Forbidden,
-    #[error("DeployHQ is temporarily unavailable. Try again in a moment.")]
+    #[error("DeployHQ is busy or rate limiting requests. Try again in a moment.")]
     Unavailable,
     #[error("DeployHQ responded {status}: {body}")]
     Api { status: u16, body: String },
