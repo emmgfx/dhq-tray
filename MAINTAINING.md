@@ -4,7 +4,7 @@ Notes for whoever picks this project up again (likely its author, a year later).
 
 ## Secrets and where they live
 
-Two signing secrets exist outside the repository. **Both are backed up in Bitwarden** (owner: emmgfx).
+Two signing secrets exist outside the repository. **Both are backed up in Bitwarden** (owner: emmgfx) as secure notes, as text: the updater key as is, the `.p12` base64-encoded, each with its password.
 
 | Secret | Used for | On the release Mac | If lost |
 | --- | --- | --- | --- |
@@ -13,20 +13,23 @@ Two signing secrets exist outside the repository. **Both are backed up in Bitwar
 
 The updater's public key is in `src-tauri/tauri.conf.json` (`plugins.updater.pubkey`). It must match `dhq-tray.key`.
 
+To back them up again: `pbcopy < ~/.tauri/dhq-tray.key` and, for the certificate, export it from Keychain Access (or `security export`) and `base64 -i <file>.p12 | pbcopy`.
+
 ## Setting up a new Mac to release
 
 1. Tooling: Node (see CI for the version), Rust via rustup, Xcode Command Line Tools, `gh` logged in with push access to `emmgfx/dhq-tray`.
-2. Code signing certificate, from Bitwarden:
+2. Code signing certificate, from Bitwarden (copy the base64 note's content first):
    ```sh
+   pbpaste | base64 -d > dhq-tray-signing-certificate.p12
    security import dhq-tray-signing-certificate.p12 -k ~/Library/Keychains/login.keychain-db -P '<p12 password>' -T /usr/bin/codesign
    security find-certificate -c "DHQ Tray Local Signing" -p > /tmp/dhq-cert.pem
    security add-trusted-cert -r trustRoot -p codeSign -k ~/Library/Keychains/login.keychain-db /tmp/dhq-cert.pem   # asks for your password
-   rm /tmp/dhq-cert.pem
+   rm /tmp/dhq-cert.pem dhq-tray-signing-certificate.p12
    security find-identity -v -p codesigning   # must list "DHQ Tray Local Signing"
    ```
-3. Updater key, from Bitwarden:
+3. Updater key, from Bitwarden (copy the note's content first):
    ```sh
-   mkdir -p ~/.tauri && cp dhq-tray.key ~/.tauri/ && chmod 600 ~/.tauri/dhq-tray.key
+   mkdir -p ~/.tauri && pbpaste > ~/.tauri/dhq-tray.key && chmod 600 ~/.tauri/dhq-tray.key
    security add-generic-password -U -s dhq-tray-updater-key -a "$USER" -w '<updater key password>' -T /usr/bin/security
    ```
 4. `npm ci`, then `npm test` and `cargo test --manifest-path src-tauri/Cargo.toml`.
