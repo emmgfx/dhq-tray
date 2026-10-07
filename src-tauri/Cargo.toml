@@ -1,0 +1,49 @@
+[package]
+name = "dhq-tray"
+version = "0.1.0"
+description = "Menu bar access to DeployHQ deployments"
+authors = ["emmgfx"]
+edition = "2021"
+
+# See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
+
+[lib]
+# The `_lib` suffix may seem redundant but it is necessary
+# to make the lib name unique and wouldn't conflict with the bin name.
+# This seems to be only an issue on Windows, see https://github.com/rust-lang/cargo/issues/8519
+name = "dhq_tray_lib"
+crate-type = ["staticlib", "cdylib", "rlib"]
+
+[build-dependencies]
+tauri-build = { version = "2", features = [] }
+
+[dependencies]
+tauri = { version = "2", features = ["tray-icon", "image-png", "macos-private-api"] }
+tauri-plugin-opener = "2"
+# UNUserNotificationCenter backend: the default NSUserNotification one no longer delivers on current macOS.
+notify-rust = { version = "4.18", features = ["preview-macos-un"] }
+tauri-plugin-autostart = "2"
+tauri-plugin-updater = "2"
+tauri-plugin-process = "2"
+serde = { version = "1", features = ["derive"] }
+serde_json = "1"
+reqwest = { version = "0.12", default-features = false, features = ["json", "rustls-tls"] }
+keyring = { version = "3", features = ["apple-native"] }
+tokio = { version = "1", features = ["time", "macros", "sync"] }
+thiserror = "2"
+
+
+# Read the optimization guideline for more details: https://tauri.app/concept/size/#cargo-configuration
+[profile.release]
+codegen-units = 1
+lto = true
+opt-level = 3
+panic = "abort"
+strip = true
+
+[target.'cfg(target_os = "macos")'.dependencies]
+objc2 = "0.6"
+mac-usernotifications = "0.3"
+objc2-user-notifications = "0.3"
+objc2-foundation = "0.3"
+block2 = "0.6"

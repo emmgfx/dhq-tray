@@ -1,0 +1,728 @@
+:root {
+  /* Near-opaque tint over the native popover material: keeps a hint of the blur
+     but contrast no longer depends on whatever is behind the window. */
+  --color-background: rgba(246, 246, 246, 0.88);
+  --color-surface: rgba(255, 255, 255, 0.8);
+  --color-surface-hover: rgba(0, 0, 0, 0.05);
+  --color-border: rgba(0, 0, 0, 0.1);
+  /* Solid text colors (macOS label / secondaryLabel). */
+  --color-text: #1d1d1f;
+  --color-text-secondary: #6e6e73;
+  --color-accent: #007aff;
+  --color-accent-text: #ffffff;
+  --color-button-secondary: rgba(0, 0, 0, 0.08);
+  --color-success: #248a3d;
+  --color-danger: #d70015;
+
+  font-family: -apple-system, BlinkMacSystemFont, "SF Pro Text", system-ui, sans-serif;
+  font-size: 13px;
+  color: var(--color-text);
+  background: transparent;
+  -webkit-font-smoothing: antialiased;
+  user-select: none;
+  cursor: default;
+}
+
+@media (prefers-color-scheme: dark) {
+  :root {
+    --color-background: rgba(36, 36, 38, 0.9);
+    --color-surface: rgba(255, 255, 255, 0.07);
+    --color-surface-hover: rgba(255, 255, 255, 0.07);
+    --color-border: rgba(255, 255, 255, 0.1);
+    --color-text: #f5f5f7;
+    --color-text-secondary: #a1a1a6;
+    --color-accent: #0a84ff;
+    --color-button-secondary: rgba(255, 255, 255, 0.14);
+    --color-success: #30d158;
+    --color-danger: #ff453a;
+  }
+}
+
+/* The user's accent color from System Settings → Appearance, when available. */
+@supports (color: AccentColor) {
+  :root {
+    --color-accent: AccentColor;
+  }
+}
+
+* {
+  box-sizing: border-box;
+}
+
+html,
+body,
+#root {
+  margin: 0;
+  height: 100%;
+  overflow: hidden;
+}
+
+/* Painted on #root with the window's corner radius (windowEffects.radius in
+   tauri.conf.json); the page itself stays transparent so the corners stay round. */
+#root {
+  border-radius: 12px;
+  background: var(--color-background);
+}
+
+button,
+input {
+  font: inherit;
+  color: inherit;
+}
+
+.screen {
+  display: flex;
+  flex-direction: column;
+  height: 100%;
+}
+
+.toolbar {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 10px;
+}
+
+.toolbar-title {
+  flex: 1;
+  margin: 0;
+  font-size: 13px;
+  font-weight: 600;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.icon-button {
+  display: grid;
+  place-items: center;
+  flex-shrink: 0;
+  width: 26px;
+  height: 26px;
+  padding: 0;
+  border: none;
+  border-radius: 6px;
+  background: transparent;
+}
+
+.icon-button:hover:not(:disabled) {
+  background: var(--color-surface-hover);
+}
+
+.icon-button:disabled {
+  opacity: 0.4;
+}
+
+.search-input {
+  width: 100%;
+  padding: 5px 8px;
+  border: 1px solid var(--color-border);
+  border-radius: 6px;
+  background: var(--color-surface);
+  outline: none;
+}
+
+.search-input {
+  flex: 1;
+}
+
+.search-input:focus {
+  border-color: var(--color-accent);
+}
+
+.scroll-area {
+  flex: 1;
+  min-height: 0;
+}
+
+.scroll-area-content {
+  padding: 6px 0;
+}
+
+.section-title {
+  margin: 12px 14px 5px;
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--color-text);
+}
+
+.list {
+  list-style: none;
+  margin: 0;
+  padding: 0 6px;
+}
+
+.list-row {
+  display: flex;
+  align-items: center;
+  width: 100%;
+  padding: 7px 8px;
+  border: none;
+  border-radius: 6px;
+  background: transparent;
+  text-align: left;
+}
+
+.list-row:active {
+  background: var(--color-surface-hover);
+}
+
+.list-row-main {
+  display: flex;
+  flex: 1;
+  flex-direction: column;
+  gap: 2px;
+  min-width: 0;
+}
+
+.list-row-title {
+  font-weight: 500;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.list-row-subtitle {
+  font-size: 11px;
+  color: var(--color-text-secondary);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.project-row {
+  display: flex;
+  align-items: center;
+  padding-left: 4px;
+}
+
+.project-row:has(.list-row:active) {
+  background: var(--color-surface-hover);
+}
+
+.project-row .list-row {
+  border-radius: 0;
+}
+
+.project-row .list-row:active {
+  background: transparent;
+}
+
+.watch-button {
+  color: var(--color-text-secondary);
+  opacity: 0.6;
+}
+
+.watch-button:hover:not(:disabled) {
+  background: transparent;
+  opacity: 1;
+}
+
+/* Primary label color: readable on any vibrancy background, unlike the accent. */
+.watch-button.is-watched {
+  color: var(--color-text);
+  opacity: 1;
+}
+
+.chevron {
+  flex-shrink: 0;
+  color: var(--color-text-secondary);
+}
+
+.target-row:disabled {
+  opacity: 0.55;
+}
+
+.row-action {
+  flex-shrink: 0;
+  font-size: 12px;
+  color: var(--color-accent);
+}
+
+.target-row:disabled .row-action {
+  color: var(--color-text-secondary);
+}
+
+.settings-row-value {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  color: var(--color-text-secondary);
+}
+
+.monospace {
+  font-family: ui-monospace, "SF Mono", Menlo, monospace;
+  font-size: 0.92em;
+}
+
+.summary-list {
+  margin-top: 4px;
+}
+
+.commit-row {
+  display: flex;
+  padding: 7px 12px;
+}
+
+.step-row {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 7px 12px;
+}
+
+.completed-steps-toggle {
+  width: 100%;
+  border: none;
+  background: transparent;
+  text-align: left;
+}
+
+.completed-steps-toggle .step-title {
+  flex: 1;
+  color: var(--color-text-secondary);
+}
+
+.completed-steps-toggle:active {
+  background: var(--color-surface-hover);
+}
+
+.step-status {
+  display: grid;
+  place-items: center;
+  flex-shrink: 0;
+  width: 14px;
+}
+
+.step-icon {
+  color: var(--color-text-secondary);
+}
+
+.step-completed .step-icon {
+  color: var(--color-success);
+}
+
+.step-failed .step-icon {
+  color: var(--color-danger);
+}
+
+.step-title {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.step-pending .step-title {
+  color: var(--color-text-secondary);
+}
+
+.screen-footer {
+  padding: 10px;
+}
+
+.screen-footer .error-message {
+  margin: 0 2px 8px;
+}
+
+.button-block {
+  width: 100%;
+  height: 28px;
+}
+
+.form-actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: 6px;
+}
+
+.grouped-list {
+  list-style: none;
+  margin: 0 10px 6px;
+  padding: 0;
+  border: 1px solid var(--color-border);
+  border-radius: 10px;
+  background: var(--color-surface);
+  overflow: hidden;
+}
+
+.grouped-list > li {
+  position: relative;
+}
+
+.grouped-list > li + li::before {
+  content: "";
+  position: absolute;
+  top: 0;
+  right: 0;
+  left: 0;
+  border-top: 1px solid var(--color-border);
+}
+
+.grouped-list-row {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  width: 100%;
+  padding: 8px 10px;
+  border: none;
+  background: transparent;
+  text-align: left;
+}
+
+.grouped-list-row:active {
+  background: var(--color-surface-hover);
+}
+
+.grouped-list > li {
+  --status-color: var(--color-text-secondary);
+}
+
+.grouped-list > li.status-running {
+  --status-color: var(--color-accent);
+}
+
+.grouped-list > li.status-completed {
+  --status-color: var(--color-success);
+}
+
+.grouped-list > li.status-failed {
+  --status-color: var(--color-danger);
+}
+
+.status-indicator {
+  flex-shrink: 0;
+  width: 12px;
+  color: var(--status-color);
+}
+
+.status-dot {
+  height: 8px;
+  width: 8px;
+  margin: 0 2px;
+  border-radius: 50%;
+  background: var(--status-color);
+}
+
+.status-running .status-dot {
+  animation: status-pulse 1.4s ease-in-out infinite;
+}
+
+@keyframes status-pulse {
+  50% {
+    opacity: 0.35;
+  }
+}
+
+.current-step {
+  color: var(--status-color);
+}
+
+.status-pill {
+  font-variant-numeric: tabular-nums;
+  flex-shrink: 0;
+  padding: 2px 8px;
+  border-radius: 999px;
+  font-size: 11px;
+  font-weight: 500;
+  color: var(--status-color);
+  background: color-mix(in srgb, var(--status-color) 14%, transparent);
+}
+
+.status-completed {
+  color: var(--color-success);
+}
+
+.status-failed {
+  color: var(--color-danger);
+}
+
+/* macOS-style push buttons, drawn in CSS: WebKit's native ones look dated
+   and have poor contrast inside this panel. */
+.button {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  height: 24px;
+  padding: 0 12px;
+  border: none;
+  border-radius: 6px;
+  font-size: 13px;
+  font-weight: 500;
+  line-height: 1;
+  white-space: nowrap;
+}
+
+.button:active:not(:disabled) {
+  filter: brightness(0.9);
+}
+
+.button:disabled {
+  opacity: 0.45;
+}
+
+.button-small {
+  height: 22px;
+  padding: 0 10px;
+  font-size: 12px;
+}
+
+/* Default action, as in System Settings: accent fill, white text. */
+.button-primary {
+  background: var(--color-accent);
+  color: #ffffff;
+}
+
+/* Regular action, as in System Settings: gray fill, primary label color. */
+.button-secondary {
+  background: var(--color-button-secondary);
+  color: var(--color-text);
+}
+
+.settings-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  min-height: 34px;
+  padding: 6px 12px;
+}
+
+.settings-row > span:first-child {
+  flex-shrink: 0;
+}
+
+.settings-row-input {
+  display: flex;
+  flex: 1;
+  align-items: center;
+  justify-content: flex-end;
+  min-width: 0;
+}
+
+/* Inline fields inside a grouped row, right aligned like System Settings. */
+.settings-row-input input {
+  flex: 1;
+  min-width: 0;
+  padding: 2px 0;
+  border: none;
+  outline: none;
+  background: transparent;
+  text-align: right;
+}
+
+.settings-row-input input::placeholder {
+  color: var(--color-text-secondary);
+  opacity: 0.7;
+}
+
+.settings-row:focus-within > span:first-child {
+  color: var(--color-accent);
+}
+
+.input-suffix {
+  flex-shrink: 0;
+  color: var(--color-text-secondary);
+}
+
+.settings-note {
+  margin: 0 22px 8px;
+  font-size: 11px;
+  line-height: 1.4;
+  color: var(--color-text-secondary);
+}
+
+.settings-actions {
+  margin: 0 10px 4px;
+}
+
+.settings-row select {
+  max-width: 55%;
+  font-size: 12px;
+}
+
+.switch {
+  flex-shrink: 0;
+  margin: 0;
+}
+
+.sign-out-list {
+  margin-top: 14px;
+}
+
+.destructive-row {
+  width: 100%;
+  border: none;
+  background: transparent;
+  color: var(--color-danger);
+}
+
+.destructive-row:active {
+  background: var(--color-surface-hover);
+}
+
+.update-banner {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  margin: 4px 10px 6px;
+  padding: 8px 10px 8px 12px;
+  border-radius: 10px;
+  background: color-mix(in srgb, var(--color-accent) 14%, transparent);
+  font-weight: 500;
+}
+
+.link-button {
+  padding: 0;
+  border: none;
+  background: none;
+  color: var(--color-accent);
+  font-size: inherit;
+}
+
+.settings-footer {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin: 14px 12px 6px;
+  font-size: 11px;
+  color: var(--color-text-secondary);
+}
+
+.error-message {
+  margin: 6px 12px;
+  color: var(--color-danger);
+  font-size: 12px;
+  user-select: text;
+}
+
+.centered-message {
+  align-items: center;
+  justify-content: center;
+  gap: 4px;
+  padding: 16px;
+  text-align: center;
+}
+
+.empty-message {
+  margin: 24px 12px;
+  text-align: center;
+  color: var(--color-text-secondary);
+}
+
+/* Push/pop navigation between screens (driven by navigationTransition.ts).
+   Only the screen content slides: the root (with the rounded background) is
+   not captured, so the window corners stay still. */
+:root {
+  view-transition-name: none;
+}
+
+.screen {
+  view-transition-name: screen;
+}
+
+/* Clip the sliding snapshots to the window's rounded frame. */
+::view-transition-image-pair(screen) {
+  overflow: hidden;
+  border-radius: 12px;
+}
+
+::view-transition-old(screen),
+::view-transition-new(screen) {
+  animation-duration: 280ms;
+  animation-timing-function: cubic-bezier(0.2, 0.8, 0.2, 1);
+}
+
+[data-navigation-direction="forward"]::view-transition-old(screen) {
+  animation-name: slide-out-to-left;
+}
+
+[data-navigation-direction="forward"]::view-transition-new(screen) {
+  animation-name: slide-in-from-right;
+}
+
+[data-navigation-direction="back"]::view-transition-old(screen) {
+  animation-name: slide-out-to-right;
+}
+
+[data-navigation-direction="back"]::view-transition-new(screen) {
+  animation-name: slide-in-from-left;
+}
+
+@keyframes slide-in-from-right {
+  from {
+    transform: translateX(100%);
+  }
+}
+
+@keyframes slide-out-to-left {
+  to {
+    transform: translateX(-30%);
+    opacity: 0;
+  }
+}
+
+@keyframes slide-in-from-left {
+  from {
+    transform: translateX(-30%);
+    opacity: 0;
+  }
+}
+
+@keyframes slide-out-to-right {
+  to {
+    transform: translateX(100%);
+  }
+}
+
+/* 7. macOS keyboard focus ring. */
+:focus {
+  outline: none;
+}
+
+:focus-visible {
+  outline: 3px solid color-mix(in srgb, var(--color-accent) 50%, transparent);
+  outline-offset: -3px;
+  border-radius: 6px;
+}
+
+.search-input:focus-visible,
+.settings-row-input input:focus-visible {
+  outline: none;
+}
+
+.search-input:focus {
+  border-color: var(--color-accent);
+  box-shadow: 0 0 0 3px color-mix(in srgb, var(--color-accent) 35%, transparent);
+}
+
+/* 10. macOS spinning activity indicator (see Spinner.tsx). */
+.spinner {
+  position: relative;
+  display: inline-block;
+  width: 14px;
+  height: 14px;
+  vertical-align: middle;
+}
+
+.spinner > span {
+  position: absolute;
+  top: 0;
+  left: 6px;
+  width: 2px;
+  height: 4px;
+  border-radius: 1px;
+  background: var(--color-text-secondary);
+  transform-origin: 1px 7px;
+  animation: spinner-fade 0.8s linear infinite;
+}
+
+@keyframes spinner-fade {
+  from {
+    opacity: 1;
+  }
+  to {
+    opacity: 0.15;
+  }
+}
