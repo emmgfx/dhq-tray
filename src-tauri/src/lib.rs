@@ -87,12 +87,13 @@ pub fn run() {
         ])
         .build(tauri::generate_context!())
         .expect("error while building tauri application")
-        .run(|_app, event| {
+        .run(|app, event| match event {
             // Keep running in the menu bar when the window is closed.
-            if let RunEvent::ExitRequested { api, code, .. } = event {
-                if code.is_none() {
-                    api.prevent_exit();
-                }
-            }
+            RunEvent::ExitRequested { api, code, .. } if code.is_none() => api.prevent_exit(),
+            // macOS asks a running app to "reopen" when it is activated from outside,
+            // e.g. a click on one of its notifications: show the panel.
+            #[cfg(target_os = "macos")]
+            RunEvent::Reopen { .. } => tray::show_main_window(app),
+            _ => {}
         });
 }

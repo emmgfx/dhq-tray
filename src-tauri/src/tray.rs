@@ -162,6 +162,14 @@ fn toggle_main_window(app: &AppHandle) {
         hide_panel(&window);
         return;
     }
+    show_main_window(app);
+}
+
+/// Opens the panel under the tray icon (also when a notification is clicked).
+pub fn show_main_window(app: &AppHandle) {
+    let Some(window) = app.get_webview_window(MAIN_WINDOW_LABEL) else {
+        return;
+    };
     running_deployments_poller::mark_active(app);
     move_window_below_tray_icon(app, &window);
     show_with_fade_in(&window);
