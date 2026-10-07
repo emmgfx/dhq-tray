@@ -241,9 +241,15 @@ pub async fn notification_permission() -> NotificationPermission {
 }
 
 #[tauri::command]
-pub fn send_test_notification(state: State<'_, AppState>) {
+/// Closes the panel first and notifies a moment later, so the test runs in
+/// the same conditions as a real deployment notification.
+pub fn send_test_notification(app: AppHandle, state: State<'_, AppState>) {
     let sound = state.preferences().notification_sound.then_some("Glass");
-    notifications::show("DHQ Tray", "Notifications are working.", sound);
+    crate::tray::hide_main_window(&app);
+    std::thread::spawn(move || {
+        std::thread::sleep(std::time::Duration::from_secs(1));
+        notifications::show("DHQ Tray", "Notifications are working.", sound);
+    });
 }
 
 /// Opens System Settings → Notifications, where the user can allow DHQ Tray.

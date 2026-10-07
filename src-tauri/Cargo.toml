@@ -20,8 +20,6 @@ tauri-build = { version = "2", features = [] }
 [dependencies]
 tauri = { version = "2", features = ["tray-icon", "image-png", "macos-private-api"] }
 tauri-plugin-opener = "2"
-# UNUserNotificationCenter backend: the default NSUserNotification one no longer delivers on current macOS.
-notify-rust = { version = "4.18", features = ["preview-macos-un"] }
 tauri-plugin-autostart = "2"
 tauri-plugin-updater = "2"
 tauri-plugin-process = "2"
@@ -43,7 +41,9 @@ strip = true
 
 [target.'cfg(target_os = "macos")'.dependencies]
 objc2 = "0.6"
-mac-usernotifications = "0.3"
+# UNUserNotificationCenter. Used directly: notify-rust wraps sends in a check that
+# the main run loop is idle at that instant, which randomly drops notifications.
+mac-usernotifications = { version = "0.3", features = ["blocking-wrappers"] }
 objc2-user-notifications = "0.3"
 objc2-foundation = "0.3"
 block2 = "0.6"

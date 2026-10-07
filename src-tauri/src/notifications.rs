@@ -1,4 +1,4 @@
-//! Native notifications through UNUserNotificationCenter (via notify-rust).
+//! Native notifications through UNUserNotificationCenter (mac-usernotifications).
 //!
 //! macOS only authorizes that API for properly signed apps; ad-hoc signed
 //! builds get UNErrorDomain error 1 (and the legacy NSUserNotificationCenter
@@ -24,8 +24,8 @@ pub enum NotificationPermission {
 }
 
 /// Asks macOS for permission once; later calls return the stored decision.
-/// Called directly (not through notify-rust) to log the NSError macOS gives
-/// when it refuses, which the library drops.
+/// Called directly (not through mac-usernotifications) to log the NSError
+/// macOS gives when it refuses, which the library drops.
 pub fn request_permission() {
     #[cfg(target_os = "macos")]
     {
@@ -61,7 +61,7 @@ pub fn permission() -> NotificationPermission {
     #[cfg(target_os = "macos")]
     {
         use mac_usernotifications::AuthorizationStatus;
-        return match notify_rust::get_notification_settings_blocking() {
+        return match mac_usernotifications::blocking::get_notification_settings() {
             Ok(settings) => match settings.authorization_status {
                 AuthorizationStatus::Authorized
                 | AuthorizationStatus::Provisional
@@ -87,16 +87,20 @@ pub fn show(title: &str, body: &str, sound: Option<&str>) {
         show_with_apple_script(title, body, sound);
         return;
     }
-    let mut notification = notify_rust::Notification::new();
-    notification.summary(title).body(body);
-    if let Some(sound) = sound {
-        notification.sound_name(sound);
+    #[cfg(target_os = "macos")]
+    {
+        let notification = mac_usernotifications::Notification::new()
+            .title(title)
+            .message(body)
+            .maybe_sound(sound);
+        // The blocking sender is safe on any thread and does not depend on
+        // what the main thread is doing at that moment.
+        std::thread::spawn(move || {
+            if let Err(error) = mac_usernotifications::blocking::send(notification) {
+                eprintln!("Could not show notification: {error}");
+            }
+        });
     }
-    std::thread::spawn(move || {
-        if let Err(error) = notification.show() {
-            eprintln!("Could not show notification: {error}");
-        }
-    });
 }
 
 #[cfg(target_os = "macos")]
@@ -125,4 +129,27 @@ fn show_with_apple_script(title: &str, body: &str, sound: Option<&str>) {
         Ok(_) => {}
         Err(error) => eprintln!("Could not run osascript: {error}"),
     });
+}
+
+/// Diagnostic: with `DHQ_TRAY_NOTIFICATION_SELF_TEST=1`, sends a notification
+/// a few seconds after launch through the same path as deployment ones and
+/// logs whether macOS reports it as delivered.
+pub fn run_self_test_if_requested() {
+    #[cfg(target_os = "macos")]
+    if std::env::var_os("DHQ_TRAY_NOTIFICATION_SELF_TEST").is_some() {
+        std::thread::spawn(|| {
+            std::thread::sleep(std::time::Duration::from_secs(4));
+            let before = mac_usernotifications::block_on(
+                mac_usernotifications::get_delivered_notification_ids(),
+            )
+            .len();
+            show("DHQ Tray", "Notification self-test", Some("Glass"));
+            std::thread::sleep(std::time::Duration::from_secs(3));
+            let after = mac_usernotifications::block_on(
+                mac_usernotifications::get_delivered_notification_ids(),
+            )
+            .len();
+            eprintln!("Notification self-test: delivered before {before}, after {after}");
+        });
+    }
 }

@@ -47,6 +47,7 @@ pub fn run() {
             tray::setup(app)?;
             running_deployments_poller::start(app.handle());
             notifications::request_permission();
+            notifications::run_self_test_if_requested();
             Ok(())
         })
         .on_window_event(|window, event| {
@@ -56,7 +57,10 @@ pub fn run() {
             if window.label() == tray::MAIN_WINDOW_LABEL {
                 if let WindowEvent::Focused(false) = event {
                     if !tray::is_cursor_over_tray_icon(window.app_handle()) {
-                        let _ = window.hide();
+                        let app = window.app_handle();
+                        if let Some(window) = app.get_webview_window(window.label()) {
+                            tray::hide_panel(&window);
+                        }
                     }
                 }
             }

@@ -69,7 +69,7 @@ It sets the version, builds and signs the app, commits and tags `v0.2.0`, pushes
 
 The release Mac needs:
 
-- **Code signing:** the self-signed `DHQ Tray Local Signing` certificate in the login Keychain, trusted for code signing. It keeps the app's identity stable across versions, so the Keychain does not ask again for the API key after each update.
+- **Code signing:** the self-signed `DHQ Tray Local Signing` certificate in the login Keychain, trusted for code signing. It gives the app a stable identity, which macOS requires to authorize its notifications. It does not avoid Keychain prompts: without an Apple-issued Team ID the Keychain identifies each build by its hash, so after every update it asks once for permission to read the API key ("Always Allow").
 - **Update signing:** `~/.tauri/dhq-tray.key`, with its password in the Keychain as `dhq-tray-updater-key`. Installed apps only accept updates signed with this key.
 
 Both are backed up outside the repository. Losing the update key means users must reinstall manually once.

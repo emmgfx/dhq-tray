@@ -159,7 +159,7 @@ fn toggle_main_window(app: &AppHandle) {
         return;
     };
     if window.is_visible().unwrap_or(false) {
-        let _ = window.hide();
+        hide_panel(&window);
         return;
     }
     running_deployments_poller::mark_active(app);
@@ -169,8 +169,24 @@ fn toggle_main_window(app: &AppHandle) {
 
 pub fn hide_main_window(app: &AppHandle) {
     if let Some(window) = app.get_webview_window(MAIN_WINDOW_LABEL) {
-        let _ = window.hide();
+        hide_panel(&window);
     }
+}
+
+/// Hides the panel and the app with it. Hiding only the window would leave
+/// the app active, so macOS would treat it as frontmost: notification banners
+/// get suppressed and the previous app does not get the keyboard back.
+pub fn hide_panel(window: &WebviewWindow) {
+    let _ = window.hide();
+    #[cfg(target_os = "macos")]
+    let _ = window.run_on_main_thread(|| {
+        use objc2::{class, msg_send, runtime::AnyObject};
+        // SAFETY: NSApplication is used on the main thread, as AppKit requires.
+        unsafe {
+            let ns_app: *mut AnyObject = msg_send![class!(NSApplication), sharedApplication];
+            let _: () = msg_send![&*ns_app, hide: std::ptr::null::<AnyObject>()];
+        }
+    });
 }
 
 /// Shows the window fading it in like native menu bar panels. Animating the
@@ -182,6 +198,9 @@ fn show_with_fade_in(window: &WebviewWindow) {
         // SAFETY: `ns_window` is this window's live NSWindow, and tray events run
         // on the main thread, where AppKit must be used.
         unsafe {
+            // The app may have been hidden along with the panel (see `hide_panel`).
+            let ns_app: *mut AnyObject = msg_send![objc2::class!(NSApplication), sharedApplication];
+            let _: () = msg_send![&*ns_app, unhide: std::ptr::null::<AnyObject>()];
             let ns_window = &*(ns_window as *mut AnyObject);
             let _: () = msg_send![ns_window, setAlphaValue: 0.0_f64];
             let _ = window.show();
