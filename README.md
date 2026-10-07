@@ -70,6 +70,8 @@ CI (`.github/workflows/ci.yml`) runs both and builds the frontend on every push.
 
 ## Releases and updates
 
+See [MAINTAINING.md](MAINTAINING.md) for setting up a release Mac, where the signing secrets live, debugging, and why things are done this way.
+
 The app checks `https://github.com/emmgfx/dhq-tray/releases/latest/download/latest.json` at launch and every 6 hours, and offers to install newer versions (Settings → Updates, or the banner on the main screen).
 
 To publish a version, from a clean working tree on the release Mac:
