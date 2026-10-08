@@ -1,6 +1,7 @@
 import { useEffect, useState } from "react";
 import { ChevronLeft } from "lucide-react";
-import { errorMessage, listRecentCommits, triggerDeployment } from "../api";
+import { type ErrorDetails, listRecentCommits, toErrorDetails, triggerDeployment } from "../api";
+import { ErrorAlert } from "./ErrorAlert";
 import { formatRelativeTime, shortRevision } from "../formatters";
 import { ICON_SIZE, ICON_STROKE_WIDTH } from "../icons";
 import type { Commit, DeployOptions, DeployTarget, Deployment, Project } from "../types";
@@ -44,12 +45,12 @@ function pendingCommits(commits: Commit[], deployedRevision: string | null) {
 export function DeployView({ project, target, branch, onBack, onDeployed }: DeployViewProps) {
   const [commits, setCommits] = useState<Commit[] | null>(null);
   const [isSyncedWithRemote, setIsSyncedWithRemote] = useState(true);
-  const [commitsError, setCommitsError] = useState<string | null>(null);
+  const [commitsError, setCommitsError] = useState<ErrorDetails | null>(null);
   const [options, setOptions] = useState<DeployOptions>(DEFAULT_DEPLOY_OPTIONS);
   // Without a start revision DeployHQ uploads every file, not just the changes.
   const [deployAllFiles, setDeployAllFiles] = useState(!target.lastRevision);
   const [isSubmitting, setIsSubmitting] = useState(false);
-  const [deployError, setDeployError] = useState<string | null>(null);
+  const [deployError, setDeployError] = useState<ErrorDetails | null>(null);
 
   useEffect(() => {
     listRecentCommits(project.permalink, branch)
@@ -57,7 +58,7 @@ export function DeployView({ project, target, branch, onBack, onDeployed }: Depl
         setCommits(recent.commits);
         setIsSyncedWithRemote(recent.is_synced_with_remote);
       })
-      .catch((error) => setCommitsError(errorMessage(error)));
+      .catch((error) => setCommitsError(toErrorDetails(error)));
   }, [project.permalink, branch]);
 
   const latestRevision = commits?.[0]?.ref ?? null;
@@ -79,7 +80,7 @@ export function DeployView({ project, target, branch, onBack, onDeployed }: Depl
       });
       onDeployed(deployment);
     } catch (error) {
-      setDeployError(errorMessage(error));
+      setDeployError(toErrorDetails(error));
       setIsSubmitting(false);
     }
   };
@@ -126,7 +127,7 @@ export function DeployView({ project, target, branch, onBack, onDeployed }: Depl
               !deployAllFiles &&
               ` (${pending.commits.length}${pending.isTruncated ? "+" : ""})`}
           </h2>
-          {commitsError && <p className="error-message">{commitsError}</p>}
+          {commitsError && <ErrorAlert error={commitsError} />}
           {commits && !isSyncedWithRemote && (
             <p className="settings-note">
               DeployHQ could not refresh the repository right now, so the newest commits may be
@@ -200,7 +201,7 @@ export function DeployView({ project, target, branch, onBack, onDeployed }: Depl
       </ScrollArea>
 
       <footer className="screen-footer">
-        {deployError && <p className="error-message">{deployError}</p>}
+        {deployError && <ErrorAlert error={deployError} />}
         <button
           className="button button-primary button-block"
           onClick={handleDeploy}

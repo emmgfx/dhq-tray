@@ -4,7 +4,7 @@ import { disable, enable, isEnabled } from "@tauri-apps/plugin-autostart";
 import { ChevronLeft } from "lucide-react";
 import {
   clearCredentials,
-  errorMessage,
+  type ErrorDetails,
   getNotificationPermission,
   getPreferences,
   openNotificationSettings,
@@ -12,7 +12,9 @@ import {
   saveCredentials,
   sendTestNotification,
   setPreferences,
+  toErrorDetails,
 } from "../api";
+import { ErrorAlert } from "./ErrorAlert";
 import { ICON_SIZE, ICON_STROKE_WIDTH } from "../icons";
 import type {
   NotificationLevel,
@@ -41,7 +43,7 @@ export function SettingsView({ settings, onSaved, onCancel }: SettingsViewProps)
   const [email, setEmail] = useState(settings?.email ?? "");
   const [apiKey, setApiKey] = useState("");
   const [isSaving, setIsSaving] = useState(false);
-  const [error, setError] = useState<string | null>(null);
+  const [error, setError] = useState<ErrorDetails | null>(null);
 
   const [preferences, setPreferencesState] = useState<Preferences | null>(null);
   const [opensAtLogin, setOpensAtLogin] = useState<boolean | null>(null);
@@ -67,7 +69,7 @@ export function SettingsView({ settings, onSaved, onCancel }: SettingsViewProps)
       await saveCredentials(account, email, apiKey);
       onSaved();
     } catch (saveError) {
-      setError(errorMessage(saveError));
+      setError(toErrorDetails(saveError));
     } finally {
       setIsSaving(false);
     }
@@ -78,7 +80,7 @@ export function SettingsView({ settings, onSaved, onCancel }: SettingsViewProps)
       await clearCredentials();
       onSaved();
     } catch (clearError) {
-      setError(errorMessage(clearError));
+      setError(toErrorDetails(clearError));
     }
   };
 
@@ -90,7 +92,7 @@ export function SettingsView({ settings, onSaved, onCancel }: SettingsViewProps)
       await setPreferences(updated);
     } catch (saveError) {
       setPreferencesState(preferences);
-      setError(errorMessage(saveError));
+      setError(toErrorDetails(saveError));
     }
   };
 
@@ -99,7 +101,7 @@ export function SettingsView({ settings, onSaved, onCancel }: SettingsViewProps)
       await (shouldOpen ? enable() : disable());
       setOpensAtLogin(await isEnabled());
     } catch (toggleError) {
-      setError(errorMessage(toggleError));
+      setError(toErrorDetails(toggleError));
     }
   };
 
@@ -115,7 +117,7 @@ export function SettingsView({ settings, onSaved, onCancel }: SettingsViewProps)
       </header>
 
       <ScrollArea>
-        {error && <p className="error-message">{error}</p>}
+        {error && <ErrorAlert error={error} />}
 
         <section>
           <h2 className="section-title">DeployHQ account</h2>

@@ -295,10 +295,7 @@ impl<'a> DeployHqClient<'a> {
         if !status.is_success() {
             let body = response.text().await.unwrap_or_default();
             eprintln!("DeployHQ error body: {body}");
-            return Err(AppError::Api {
-                status: status.as_u16(),
-                body,
-            });
+            return Err(AppError::from_api_response(status.as_u16(), &body));
         }
         let path = request.url().path().to_owned();
         let body = response.text().await?;

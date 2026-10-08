@@ -6,6 +6,7 @@ import {
   listTrackedDeployments,
   onDeploymentUpdated,
 } from "../api";
+import { ErrorAlert } from "./ErrorAlert";
 import { deploymentTargetsTarget, toDeployTargets } from "../deployTargets";
 import { isDeploymentInProgress } from "../deploymentStatus";
 import type { DeployTarget, Deployment, Project } from "../types";
@@ -174,7 +175,7 @@ export function ProjectView({ account, project, onBack, onDeployTarget }: Projec
       </header>
 
       <ScrollArea>
-        {error && <p className="error-message">{error}</p>}
+        {error && <ErrorAlert error={error} />}
         {!targets && !error && (
           <p className="empty-message">
             <Spinner />

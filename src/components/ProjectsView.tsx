@@ -1,5 +1,12 @@
 import { useEffect, useMemo, useRef, useState } from "react";
-import { errorMessage, listProjects, listWatchedProjects, setProjectWatched } from "../api";
+import {
+  type ErrorDetails,
+  listProjects,
+  listWatchedProjects,
+  setProjectWatched,
+  toErrorDetails,
+} from "../api";
+import { ErrorAlert } from "./ErrorAlert";
 import type { Project, WatchedDeployment } from "../types";
 import { RefreshCw, Settings } from "lucide-react";
 import { ICON_SIZE, ICON_STROKE_WIDTH } from "../icons";
@@ -29,7 +36,7 @@ export function ProjectsView({
     isRefreshing,
     refresh: refreshProjects,
   } = useCachedResource("projects", listProjects);
-  const [toggleError, setToggleError] = useState<string | null>(null);
+  const [toggleError, setToggleError] = useState<ErrorDetails | null>(null);
   const error = loadError ?? toggleError;
   const [searchQuery, setSearchQuery] = useState("");
   const screenRef = useRef<HTMLDivElement>(null);
@@ -63,7 +70,7 @@ export function ProjectsView({
       );
       setWatchedPermalinks(new Set(watched.map((watchedProject) => watchedProject.permalink)));
     } catch (toggleError) {
-      setToggleError(errorMessage(toggleError));
+      setToggleError(toErrorDetails(toggleError));
     }
   };
 
@@ -128,7 +135,7 @@ export function ProjectsView({
       </header>
 
       <ScrollArea>
-        {error && <p className="error-message">{error}</p>}
+        {error && <ErrorAlert error={error} />}
         {!projects && !error && (
           <p className="empty-message">
             <Spinner />

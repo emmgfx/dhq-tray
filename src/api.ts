@@ -97,5 +97,23 @@ export const onOpenDeployment = (
 ): Promise<UnlistenFn> =>
   listen<WatchedDeployment>("open-deployment", (event) => handler(event.payload));
 
-export const errorMessage = (error: unknown) =>
-  typeof error === "string" ? error : error instanceof Error ? error.message : String(error);
+/** What the UI shows for a failure. Backend commands reject with this shape. */
+export interface ErrorDetails {
+  message: string;
+  hint?: string | null;
+}
+
+export const toErrorDetails = (error: unknown): ErrorDetails => {
+  if (typeof error === "string") return { message: error };
+  if (error instanceof Error) return { message: error.message };
+  if (error && typeof error === "object" && "message" in error) {
+    const { message, hint } = error as { message: unknown; hint?: unknown };
+    return {
+      message: String(message),
+      hint: typeof hint === "string" ? hint : null,
+    };
+  }
+  return { message: String(error) };
+};
+
+export const errorMessage = (error: unknown) => toErrorDetails(error).message;

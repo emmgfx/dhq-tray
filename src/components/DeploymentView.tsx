@@ -9,7 +9,15 @@ import {
   ExternalLink,
   X,
 } from "lucide-react";
-import { abortDeployment, errorMessage, listStepLogs, onDeploymentUpdated, redeploy } from "../api";
+import {
+  abortDeployment,
+  type ErrorDetails,
+  listStepLogs,
+  onDeploymentUpdated,
+  redeploy,
+  toErrorDetails,
+} from "../api";
+import { ErrorAlert } from "./ErrorAlert";
 import { deploymentStatusLabel, isDeploymentInProgress, stepLabel } from "../deploymentStatus";
 import { formatDuration, formatElapsedTime, shortRevision } from "../formatters";
 import { ICON_SIZE, ICON_STROKE_WIDTH } from "../icons";
@@ -63,15 +71,15 @@ function StepLog({
   step: string;
 }) {
   const [entries, setEntries] = useState<StepLogEntry[] | null>(null);
-  const [error, setError] = useState<string | null>(null);
+  const [error, setError] = useState<ErrorDetails | null>(null);
 
   useEffect(() => {
     listStepLogs(project, deployment, step)
       .then(setEntries)
-      .catch((loadError) => setError(errorMessage(loadError)));
+      .catch((loadError) => setError(toErrorDetails(loadError)));
   }, [project, deployment, step]);
 
-  if (error) return <p className="error-message">{error}</p>;
+  if (error) return <ErrorAlert error={error} />;
   if (!entries) {
     return (
       <p className="empty-message">
@@ -103,7 +111,7 @@ export function DeploymentView({
   const [openLogStep, setOpenLogStep] = useState<string | null>(null);
   const [confirmingAction, setConfirmingAction] = useState<PendingAction | null>(null);
   const [isActing, setIsActing] = useState(false);
-  const [actionError, setActionError] = useState<string | null>(null);
+  const [actionError, setActionError] = useState<ErrorDetails | null>(null);
 
   useEffect(() => {
     const unlistenPromise = onDeploymentUpdated((update) => {
@@ -144,7 +152,7 @@ export function DeploymentView({
       }
       setConfirmingAction(null);
     } catch (error) {
-      setActionError(errorMessage(error));
+      setActionError(toErrorDetails(error));
     } finally {
       setIsActing(false);
     }
@@ -278,7 +286,7 @@ export function DeploymentView({
       </ScrollArea>
 
       <footer className="screen-footer">
-        {actionError && <p className="error-message">{actionError}</p>}
+        {actionError && <ErrorAlert error={actionError} />}
         {confirmingAction ? (
           <div className="confirm-row">
             <span>{ACTION_LABELS[confirmingAction].confirm}</span>

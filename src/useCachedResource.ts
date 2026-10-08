@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useRef, useState } from "react";
-import { errorMessage } from "./api";
+import { type ErrorDetails, toErrorDetails } from "./api";
 import { readCache, writeCache } from "./responseCache";
 
 /**
@@ -8,7 +8,7 @@ import { readCache, writeCache } from "./responseCache";
  */
 export function useCachedResource<T>(cacheKey: string, fetchResource: () => Promise<T>) {
   const [data, setData] = useState<T | null>(() => readCache<T>(cacheKey));
-  const [error, setError] = useState<string | null>(null);
+  const [error, setError] = useState<ErrorDetails | null>(null);
   const [isRefreshing, setIsRefreshing] = useState(false);
   // Latest fetcher without making `refresh` change on every render.
   const fetchResourceRef = useRef(fetchResource);
@@ -22,7 +22,7 @@ export function useCachedResource<T>(cacheKey: string, fetchResource: () => Prom
       setData(fresh);
       writeCache(cacheKey, fresh);
     } catch (fetchError) {
-      setError(errorMessage(fetchError));
+      setError(toErrorDetails(fetchError));
     } finally {
       setIsRefreshing(false);
     }
