@@ -126,13 +126,7 @@ fn tray_icon_bounds(
             let scale_factor = monitor.scale_factor();
             let icon_position = position.to_logical::<f64>(scale_factor);
             let icon_size = size.to_logical::<f64>(scale_factor);
-            let screen_origin = monitor.position().to_logical::<f64>(scale_factor);
-            let screen_size = monitor.size().to_logical::<f64>(scale_factor);
-            let is_on_screen = (screen_origin.x..screen_origin.x + screen_size.width)
-                .contains(&icon_position.x)
-                && (screen_origin.y..screen_origin.y + screen_size.height)
-                    .contains(&icon_position.y);
-            is_on_screen.then_some(TrayIconBounds {
+            monitor_contains(&monitor, icon_position).then_some(TrayIconBounds {
                 x: icon_position.x,
                 y: icon_position.y,
                 width: icon_size.width,
@@ -142,9 +136,28 @@ fn tray_icon_bounds(
         })
         .collect();
 
-    let under_cursor =
-        cursor.and_then(|cursor| candidates.iter().position(|icon| icon.contains(cursor)));
-    candidates.into_iter().nth(under_cursor.unwrap_or(0))
+    // When the panel opens from a notification the cursor is on the banner,
+    // not the icon; the banner is on the screen in use, so prefer that one.
+    let chosen = cursor.and_then(|cursor| {
+        candidates
+            .iter()
+            .position(|icon| icon.contains(cursor))
+            .or_else(|| {
+                candidates
+                    .iter()
+                    .position(|icon| monitor_contains(&icon.monitor, cursor))
+            })
+    });
+    candidates.into_iter().nth(chosen.unwrap_or(0))
+}
+
+/// Whether a point in global logical coordinates lies on the monitor.
+fn monitor_contains(monitor: &Monitor, point: LogicalPosition<f64>) -> bool {
+    let scale_factor = monitor.scale_factor();
+    let origin = monitor.position().to_logical::<f64>(scale_factor);
+    let size = monitor.size().to_logical::<f64>(scale_factor);
+    (origin.x..origin.x + size.width).contains(&point.x)
+        && (origin.y..origin.y + size.height).contains(&point.y)
 }
 
 pub fn is_cursor_over_tray_icon(app: &AppHandle) -> bool {
