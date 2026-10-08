@@ -4,7 +4,7 @@ import { useKeyDown } from "./hooks/useKeyDown";
 import { navigateWithTransition, type NavigationDirection } from "./navigationTransition";
 import type { DeployTarget, Project, SettingsSummary, WatchedDeployment } from "./types";
 import { SettingsView } from "./components/SettingsView";
-import { ProjectsView } from "./components/ProjectsView";
+import { type HomeTab, ProjectsView } from "./components/ProjectsView";
 import { ProjectView } from "./components/ProjectView";
 import { DeployView } from "./components/DeployView";
 import { DeploymentView } from "./components/DeploymentView";
@@ -20,6 +20,8 @@ export default function App() {
   // `undefined` while loading, `null` when no credentials are stored.
   const [settings, setSettings] = useState<SettingsSummary | null | undefined>(undefined);
   const [route, setRoute] = useState<Route>({ name: "projects" });
+  // Kept here so coming back from a deployment returns to the same tab.
+  const [homeTab, setHomeTab] = useState<HomeTab>("projects");
   const [settingsError, setSettingsError] = useState<string | null>(null);
 
   const navigate = (direction: NavigationDirection, nextRoute: Route) =>
@@ -157,6 +159,8 @@ export default function App() {
 
   return (
     <ProjectsView
+      tab={homeTab}
+      onTabChange={setHomeTab}
       onSelectProject={(project) => navigate("forward", { name: "project", project })}
       onSelectDeployment={(watched) => navigate("forward", { name: "deployment", watched })}
       onOpenSettings={() => navigate("forward", { name: "settings" })}

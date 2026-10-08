@@ -10,6 +10,7 @@ use crate::deployment_watcher::{self, WatchedDeployment};
 use crate::error::{AppError, AppResult};
 use crate::notifications::{self, NotificationPermission};
 use crate::preferences::{self, Preferences};
+use crate::running_deployments_poller;
 use crate::state::AppState;
 use crate::watched_projects::{self, WatchedProject};
 
@@ -159,12 +160,35 @@ pub fn set_project_watched(
     let mut projects = state.watched_projects();
     projects.retain(|project| project.permalink != permalink);
     if watched {
-        projects.push(WatchedProject { permalink, name });
+        projects.push(WatchedProject {
+            permalink: permalink.clone(),
+            name,
+        });
         projects.sort_by_key(|project| project.name.to_lowercase());
     }
     watched_projects::save(&app, &projects)?;
     state.set_watched_projects(projects.clone());
+    if watched {
+        running_deployments_poller::poll_now(&app);
+    } else {
+        running_deployments_poller::forget_project(&app, &permalink);
+    }
     Ok(projects)
+}
+
+/// Latest deployments across the watched projects, as of the poller's last
+/// pass (no request to DeployHQ). The webview merges live updates, sorts and
+/// trims them.
+#[tauri::command]
+pub fn list_recent_activity(state: State<'_, AppState>) -> Vec<WatchedDeployment> {
+    state
+        .recent_deployments
+        .lock()
+        .unwrap()
+        .values()
+        .flatten()
+        .cloned()
+        .collect()
 }
 
 /// Deployments currently being tracked, oldest first.

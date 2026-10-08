@@ -7,7 +7,7 @@
 
 use std::time::{Duration, SystemTime};
 
-use tauri::{AppHandle, Manager};
+use tauri::{AppHandle, Emitter, Manager};
 
 use crate::deployhq::{DeployHqClient, Deployment};
 use crate::deployment_watcher::{self, WatchedDeployment};
@@ -59,6 +59,9 @@ fn is_active(state: &AppState) -> bool {
         .is_some_and(|active_until| SystemTime::now() < active_until)
 }
 
+/// The Recent tab reloads its list when this is emitted.
+pub const RECENT_DEPLOYMENTS_UPDATED_EVENT: &str = "recent-deployments-updated";
+
 /// How many of each project's latest deployments are checked per poll.
 const RECENT_DEPLOYMENTS_PER_POLL: u32 = 10;
 
@@ -94,8 +97,9 @@ async fn poll_watched_projects(app: &AppHandle) {
         return;
     };
     let client = DeployHqClient::new(&state.http, &state.api_health, &credentials);
+    let watched_projects = state.watched_projects();
 
-    for project in state.watched_projects() {
+    for project in &watched_projects {
         let deployments = match client
             .list_recent_deployments(&project.permalink, RECENT_DEPLOYMENTS_PER_POLL)
             .await
@@ -114,6 +118,7 @@ async fn poll_watched_projects(app: &AppHandle) {
             .unwrap()
             .insert(project.permalink.clone());
 
+        let mut recent = Vec::with_capacity(deployments.len());
         for deployment in deployments {
             let identifier = deployment.identifier.clone();
             let is_tracked = state
@@ -129,6 +134,7 @@ async fn poll_watched_projects(app: &AppHandle) {
                 deployment,
                 failure_reason: None,
             };
+            recent.push(watched.clone());
             match classify(&watched.deployment, is_tracked || was_seen, is_first_look) {
                 Sighting::Ignore => {}
                 Sighting::Track { announce_start } => {
@@ -139,7 +145,38 @@ async fn poll_watched_projects(app: &AppHandle) {
                 }
             }
         }
+        state
+            .recent_deployments
+            .lock()
+            .unwrap()
+            .insert(project.permalink.clone(), recent);
     }
+
+    // Projects unwatched meanwhile leave the Recent tab.
+    state.recent_deployments.lock().unwrap().retain(|permalink, _| {
+        watched_projects
+            .iter()
+            .any(|project| &project.permalink == permalink)
+    });
+    let _ = app.emit(RECENT_DEPLOYMENTS_UPDATED_EVENT, ());
+}
+
+/// Forgets a project's recent deployments (it is no longer watched).
+pub fn forget_project(app: &AppHandle, permalink: &str) {
+    let removed = app
+        .state::<AppState>()
+        .recent_deployments
+        .lock()
+        .unwrap()
+        .remove(permalink);
+    if removed.is_some() {
+        let _ = app.emit(RECENT_DEPLOYMENTS_UPDATED_EVENT, ());
+    }
+}
+
+/// Polls right away, e.g. so a newly watched project shows up without waiting.
+pub fn poll_now(app: &AppHandle) {
+    app.state::<AppState>().poller_wakeup.notify_one();
 }
 
 #[cfg(test)]

@@ -14,18 +14,30 @@ import { ProjectRow } from "./ProjectRow";
 import { Spinner } from "./Spinner";
 import { useArrowKeyNavigation } from "../hooks/useArrowKeyNavigation";
 import { useKeyDown } from "../hooks/useKeyDown";
+import { RecentDeployments } from "./RecentDeployments";
 import { RunningDeployments } from "./RunningDeployments";
 import { UpdateBanner } from "./UpdateBanner";
 import { useCachedResource } from "../useCachedResource";
 import { ScrollArea } from "./ScrollArea";
 
+export type HomeTab = "projects" | "recent";
+
+const HOME_TABS: { tab: HomeTab; label: string }[] = [
+  { tab: "projects", label: "Projects" },
+  { tab: "recent", label: "Recent" },
+];
+
 interface ProjectsViewProps {
+  tab: HomeTab;
+  onTabChange: (tab: HomeTab) => void;
   onSelectProject: (project: Project) => void;
   onSelectDeployment: (watched: WatchedDeployment) => void;
   onOpenSettings: () => void;
 }
 
 export function ProjectsView({
+  tab,
+  onTabChange,
   onSelectProject,
   onSelectDeployment,
   onOpenSettings,
@@ -45,7 +57,10 @@ export function ProjectsView({
   useArrowKeyNavigation(screenRef);
   useKeyDown((event) => {
     if (!event.metaKey) return;
-    if (event.key === "r") {
+    if (event.key === "1" || event.key === "2") {
+      event.preventDefault();
+      onTabChange(event.key === "1" ? "projects" : "recent");
+    } else if (event.key === "r" && tab === "projects") {
       event.preventDefault();
       refreshProjects();
     } else if (event.key === "f") {
@@ -97,7 +112,7 @@ export function ProjectsView({
         <input
           className="search-input"
           type="search"
-          placeholder="Search projects"
+          placeholder={tab === "projects" ? "Search projects" : "Search deployments"}
           value={searchQuery}
           onChange={(event) => setSearchQuery(event.target.value)}
           onKeyDown={(event) => {
@@ -111,19 +126,22 @@ export function ProjectsView({
           data-nav-item
           autoFocus
         />
-        <button
-          className="icon-button"
-          onClick={refreshProjects}
-          disabled={isRefreshing}
-          aria-label="Refresh"
-          title="Refresh"
-        >
-          {isRefreshing ? (
-            <Spinner />
-          ) : (
-            <RefreshCw size={ICON_SIZE} strokeWidth={ICON_STROKE_WIDTH} aria-hidden />
-          )}
-        </button>
+        {/* Recent deployments come from the background poller, which keeps them current. */}
+        {tab === "projects" && (
+          <button
+            className="icon-button"
+            onClick={refreshProjects}
+            disabled={isRefreshing}
+            aria-label="Refresh"
+            title="Refresh"
+          >
+            {isRefreshing ? (
+              <Spinner />
+            ) : (
+              <RefreshCw size={ICON_SIZE} strokeWidth={ICON_STROKE_WIDTH} aria-hidden />
+            )}
+          </button>
+        )}
         <button
           className="icon-button"
           onClick={onOpenSettings}
@@ -134,36 +152,61 @@ export function ProjectsView({
         </button>
       </header>
 
+      <div className="segmented-control" role="tablist">
+        {HOME_TABS.map(({ tab: tabOption, label }, index) => (
+          <button
+            key={tabOption}
+            className="segmented-control-option"
+            role="tab"
+            aria-selected={tab === tabOption}
+            title={`${label} (⌘${index + 1})`}
+            onClick={() => onTabChange(tabOption)}
+          >
+            {label}
+          </button>
+        ))}
+      </div>
+
       <ScrollArea>
-        {error && <ErrorAlert error={error} />}
-        {!projects && !error && (
-          <p className="empty-message">
-            <Spinner />
-          </p>
-        )}
-        {projects && visibleProjects.length === 0 && (
-          <p className="empty-message">No projects found</p>
-        )}
         <UpdateBanner />
-        <RunningDeployments onSelectDeployment={onSelectDeployment} />
-        {projectSections.map(
-          (section) =>
-            section.projects.length > 0 && (
-              <section key={section.title}>
-                <h2 className="section-title">{section.title}</h2>
-                <ul className="grouped-list project-list">
-                  {section.projects.map((project) => (
-                    <ProjectRow
-                      key={project.identifier}
-                      project={project}
-                      isWatched={watchedPermalinks.has(project.permalink)}
-                      onToggleWatched={() => toggleWatched(project)}
-                      onSelect={() => onSelectProject(project)}
-                    />
-                  ))}
-                </ul>
-              </section>
-            ),
+        {tab === "recent" ? (
+          <RecentDeployments
+            searchQuery={searchQuery}
+            hasWatchedProjects={watchedPermalinks.size > 0}
+            onSelectDeployment={onSelectDeployment}
+          />
+        ) : (
+          <>
+            {error && <ErrorAlert error={error} />}
+            {!projects && !error && (
+              <p className="empty-message">
+                <Spinner />
+              </p>
+            )}
+            {projects && visibleProjects.length === 0 && (
+              <p className="empty-message">No projects found</p>
+            )}
+            <RunningDeployments onSelectDeployment={onSelectDeployment} />
+            {projectSections.map(
+              (section) =>
+                section.projects.length > 0 && (
+                  <section key={section.title}>
+                    <h2 className="section-title">{section.title}</h2>
+                    <ul className="grouped-list project-list">
+                      {section.projects.map((project) => (
+                        <ProjectRow
+                          key={project.identifier}
+                          project={project}
+                          isWatched={watchedPermalinks.has(project.permalink)}
+                          onToggleWatched={() => toggleWatched(project)}
+                          onSelect={() => onSelectProject(project)}
+                        />
+                      ))}
+                    </ul>
+                  </section>
+                ),
+            )}
+          </>
         )}
       </ScrollArea>
     </div>

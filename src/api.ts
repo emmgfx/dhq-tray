@@ -70,6 +70,9 @@ export const setProjectWatched = (permalink: string, name: string, watched: bool
 
 export const listTrackedDeployments = () => invoke<WatchedDeployment[]>("list_tracked_deployments");
 
+/** Latest deployments of the watched projects, as of the last poll (unsorted). */
+export const listRecentActivity = () => invoke<WatchedDeployment[]>("list_recent_activity");
+
 export const getPreferences = () => invoke<Preferences>("get_preferences");
 
 export const setPreferences = (preferences: Preferences) =>
@@ -90,6 +93,10 @@ export const onDeploymentUpdated = (
   handler: (watched: WatchedDeployment) => void,
 ): Promise<UnlistenFn> =>
   listen<WatchedDeployment>("deployment-updated", (event) => handler(event.payload));
+
+/** The poller refreshed the watched projects' recent deployments. */
+export const onRecentDeploymentsUpdated = (handler: () => void): Promise<UnlistenFn> =>
+  listen("recent-deployments-updated", () => handler());
 
 /** A notification was clicked: show that deployment. */
 export const onOpenDeployment = (

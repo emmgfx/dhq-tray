@@ -1,14 +1,9 @@
 import { useEffect, useRef, useState } from "react";
 import { listTrackedDeployments, onDeploymentUpdated } from "../api";
-import { Check, X } from "lucide-react";
-import {
-  currentStepLabel,
-  deploymentStatusLabel,
-  isDeploymentInProgress,
-} from "../deploymentStatus";
-import { formatDuration, formatElapsedTime, shortRevision } from "../formatters";
+import { isDeploymentInProgress } from "../deploymentStatus";
 import { useNow } from "../useNow";
-import type { Deployment, WatchedDeployment } from "../types";
+import type { WatchedDeployment } from "../types";
+import { DeploymentRow } from "./DeploymentRow";
 
 /** How long a finished deployment stays listed with its result. */
 const FINISHED_VISIBLE_MS = 60_000;
@@ -58,60 +53,15 @@ export function RunningDeployments({ onSelectDeployment }: RunningDeploymentsPro
     <section>
       <h2 className="section-title">Running deployments</h2>
       <ul className="grouped-list">
-        {deployments.map((watched) => {
-          const { project_name, target_name, deployment } = watched;
-          return (
-            <li key={deployment.identifier} className={`status-${deployment.status}`}>
-              <button
-                className="grouped-list-row"
-                onClick={() => onSelectDeployment(watched)}
-                data-nav-item
-              >
-                <DeploymentStatusIndicator deployment={deployment} />
-                <span className="list-row-main">
-                  <span className="list-row-title">{project_name}</span>
-                  <span className="list-row-subtitle">
-                    {deployment.branch ?? "?"} @ {shortRevision(deployment.end_revision.ref)} →{" "}
-                    {target_name}
-                    {deployment.deployer && ` · ${deployment.deployer}`}
-                  </span>
-                  {isDeploymentInProgress(deployment) && currentStepLabel(deployment) && (
-                    <span className="list-row-subtitle current-step">
-                      {currentStepLabel(deployment)}
-                    </span>
-                  )}
-                  {watched.failure_reason && (
-                    <span className="list-row-subtitle current-step">
-                      {watched.failure_reason}
-                    </span>
-                  )}
-                </span>
-                <span className="status-pill">
-                  {deploymentStatusLabel(deployment)} {deploymentTimeLabel(deployment, now)}
-                </span>
-              </button>
-            </li>
-          );
-        })}
+        {deployments.map((watched) => (
+          <DeploymentRow
+            key={watched.deployment.identifier}
+            watched={watched}
+            now={now}
+            onSelect={() => onSelectDeployment(watched)}
+          />
+        ))}
       </ul>
     </section>
   );
-}
-
-/** Live elapsed time while in progress, total duration once finished. */
-function deploymentTimeLabel(deployment: Deployment, now: number) {
-  const { timestamps } = deployment;
-  if (!isDeploymentInProgress(deployment)) {
-    return timestamps.duration !== null ? formatDuration(timestamps.duration) : "";
-  }
-  const since = timestamps.started_at ?? timestamps.queued_at;
-  return since ? formatElapsedTime(since, now) : "";
-}
-
-function DeploymentStatusIndicator({ deployment }: { deployment: Deployment }) {
-  if (isDeploymentInProgress(deployment)) {
-    return <span className="status-indicator status-dot" aria-hidden />;
-  }
-  const Icon = deployment.status === "completed" ? Check : X;
-  return <Icon className="status-indicator" size={12} strokeWidth={3} aria-hidden />;
 }

@@ -8,6 +8,7 @@ macOS menu bar app for quick access to [DeployHQ](https://www.deployhq.com) depl
 - Shows each project's server groups and servers with their branch and deployed revision.
 - Deploys the latest commit of the target's preferred branch, after an inline confirmation.
 - Watched projects (bell icon in the project list): their running deployments are checked continuously, including ones started outside the app: every 20 s for 10 minutes after the tray is opened, every 2 minutes otherwise.
+- Recent tab (⌘2; ⌘1 back to Projects): the latest 20 deployments across the watched projects, kept current by the background poller without extra requests (DeployHQ has no account-wide deployments endpoint).
 - Tracks deployments (started from the app or found while polling, whoever started them) and notifies when they start and when they finish, including ones that started and ended between two polls. Tracking survives restarts and updates.
 - Failed deployments show why (DeployHQ's log summary or the failing step's log) in the notification and in the detail, where the step log can be opened.
 - From a deployment's detail: abort it while running, retry it if it failed, or roll back to it.
@@ -37,7 +38,7 @@ On first launch, click the menu bar icon and enter the account permalink (`<acco
 - `src-tauri/src/deployhq.rs`: API client (HTTP basic auth). Calls go through Rust to avoid CORS and keep the API key out of the webview.
 - `src-tauri/src/credentials.rs`: Keychain storage.
 - `src-tauri/src/deployment_watcher.rs`: polls a deployment every 5 s, emits `deployment-updated` to the webview and notifies when it finishes.
-- `src-tauri/src/running_deployments_poller.rs`: continuous poller over watched projects; active pace after the tray opens, slow pace otherwise, paused while away.
+- `src-tauri/src/running_deployments_poller.rs`: continuous poller over watched projects (also keeps their latest deployments for the Recent tab, emitting `recent-deployments-updated`); active pace after the tray opens, slow pace otherwise, paused while away.
 - `src-tauri/src/watched_projects.rs`: watched projects, stored in the app config directory.
 - `src-tauri/src/tray.rs`: menu bar icon; left click toggles the popover window, right click shows the Quit menu.
 - `src-tauri/src/api_health.rs`: backoff shared by background polling when DeployHQ throttles.

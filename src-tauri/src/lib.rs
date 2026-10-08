@@ -75,6 +75,7 @@ pub fn run() {
             commands::list_watched_projects,
             commands::set_project_watched,
             commands::list_tracked_deployments,
+            commands::list_recent_activity,
             commands::get_preferences,
             commands::set_preferences,
             commands::quit_app,

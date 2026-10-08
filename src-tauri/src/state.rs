@@ -28,6 +28,9 @@ pub struct AppState {
     pub poller_wakeup: tokio::sync::Notify,
     /// Deployments the poller has already seen, so each is reported once.
     pub seen_deployments: Mutex<HashSet<String>>,
+    /// Latest deployments of each watched project, by project permalink, as of
+    /// the last poll. Feeds the panel's Recent tab.
+    pub recent_deployments: Mutex<HashMap<String, Vec<WatchedDeployment>>>,
     /// Watched projects polled at least once (their first look is silent).
     pub polled_projects: Mutex<HashSet<String>>,
     /// A deployment failed since the panel was last opened (tray icon badge).
@@ -49,6 +52,7 @@ impl AppState {
             poller_active_until: Mutex::default(),
             poller_wakeup: tokio::sync::Notify::new(),
             seen_deployments: Mutex::default(),
+            recent_deployments: Mutex::default(),
             polled_projects: Mutex::default(),
             has_unseen_failure: AtomicBool::new(false),
         }
