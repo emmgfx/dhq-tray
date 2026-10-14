@@ -37,9 +37,11 @@ pub async fn get_settings(state: State<'_, AppState>) -> AppResult<Option<Settin
 }
 
 /// Validates the credentials against the API before storing them.
-/// An empty `api_key` keeps the currently stored key.
+/// An empty `api_key` keeps the currently stored key. Switching to another
+/// account forgets what was tracked for the previous one.
 #[tauri::command]
 pub async fn save_credentials(
+    app: AppHandle,
     state: State<'_, AppState>,
     account: String,
     email: String,
@@ -57,11 +59,44 @@ pub async fn save_credentials(
         email: email.trim().to_string(),
         api_key,
     };
-    DeployHqClient::new(&state.http, &state.api_health, &new_credentials)
+    let projects = DeployHqClient::new(&state.http, &state.api_health, &new_credentials)
         .list_projects()
         .await?;
+    // Unknown after signing out, so treated as a change.
+    let previous_account = state
+        .credentials()
+        .ok()
+        .flatten()
+        .map(|credentials| credentials.account);
+    let is_same_account = previous_account
+        .is_some_and(|previous| previous.eq_ignore_ascii_case(&new_credentials.account));
     credentials::save(&new_credentials)?;
     state.set_credentials(Some(new_credentials));
+    if !is_same_account {
+        running_deployments_poller::reset(&app);
+        deployment_watcher::stop_all(&app);
+    }
+    keep_watching_only(&app, &state, &projects)?;
+    Ok(())
+}
+
+/// Stops watching projects the account does not have (they belonged to
+/// another account, or were deleted), so the poller does not keep failing.
+fn keep_watching_only(app: &AppHandle, state: &AppState, projects: &[Project]) -> AppResult<()> {
+    let watched = state.watched_projects();
+    let kept: Vec<WatchedProject> = watched
+        .iter()
+        .filter(|candidate| {
+            projects
+                .iter()
+                .any(|project| project.permalink == candidate.permalink)
+        })
+        .cloned()
+        .collect();
+    if kept.len() != watched.len() {
+        watched_projects::save(app, &kept)?;
+        state.set_watched_projects(kept);
+    }
     Ok(())
 }
 

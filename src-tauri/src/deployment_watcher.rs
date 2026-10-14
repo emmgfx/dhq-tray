@@ -94,6 +94,26 @@ pub fn resume_saved(app: &AppHandle) {
     }
 }
 
+/// Stops following every deployment, e.g. because they belong to another
+/// account. Each watcher ends at its next poll.
+pub fn stop_all(app: &AppHandle) {
+    app.state::<AppState>()
+        .tracked_deployments
+        .lock()
+        .unwrap()
+        .clear();
+    save_tracked(app);
+    tray::refresh_icon(app);
+}
+
+fn is_tracked(state: &AppState, identifier: &str) -> bool {
+    state
+        .tracked_deployments
+        .lock()
+        .unwrap()
+        .contains_key(identifier)
+}
+
 fn save_tracked(app: &AppHandle) {
     let tracked: Vec<WatchedDeployment> = app
         .state::<AppState>()
@@ -116,6 +136,10 @@ async fn poll_until_finished(app: &AppHandle, mut watched: WatchedDeployment) {
     while SystemTime::now() < gives_up_at {
         tokio::time::sleep(POLL_INTERVAL).await;
         let state = app.state::<AppState>();
+        // No longer tracked: `stop_all` was called (the account changed).
+        if !is_tracked(&state, &watched.deployment.identifier) {
+            return;
+        }
         // Paused while the user is away or DeployHQ is throttling; checked again later.
         if user_activity::is_user_away() || state.api_health.is_backing_off() {
             continue;
@@ -136,11 +160,16 @@ async fn poll_until_finished(app: &AppHandle, mut watched: WatchedDeployment) {
             Ok(deployment) => {
                 consecutive_errors = 0;
                 watched.deployment = deployment;
-                state
+                // Updated only if still tracked, so a stopped watcher cannot bring it back.
+                match state
                     .tracked_deployments
                     .lock()
                     .unwrap()
-                    .insert(watched.deployment.identifier.clone(), watched.clone());
+                    .get_mut(&watched.deployment.identifier)
+                {
+                    Some(tracked) => *tracked = watched.clone(),
+                    None => return,
+                }
                 let _ = app.emit(DEPLOYMENT_UPDATED_EVENT, &watched);
                 if watched.deployment.is_finished() {
                     announce_finished(app, watched).await;
