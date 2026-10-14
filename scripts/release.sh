@@ -49,7 +49,14 @@ cargo test --manifest-path src-tauri/Cargo.toml
 
 PREVIOUS_TAG="$(git describe --tags --abbrev=0 2>/dev/null || true)"
 NOTES_DRAFT="$(mktemp -t dhq-tray-release-notes)"
-trap 'rm -f "$NOTES_DRAFT"' EXIT
+# The files the release changes. Until the release commit they are restored on
+# exit, so a failed run leaves a clean tree and can simply be run again.
+VERSION_FILES=(package.json package-lock.json src-tauri/tauri.conf.json src-tauri/Cargo.toml src-tauri/Cargo.lock)
+cleanup() {
+  rm -f "$NOTES_DRAFT"
+  git checkout -q HEAD -- "${VERSION_FILES[@]}"
+}
+trap cleanup EXIT
 if [[ -n "${RELEASE_NOTES_FILE:-}" ]]; then
   cp "$RELEASE_NOTES_FILE" "$NOTES_DRAFT"
 else
@@ -84,13 +91,20 @@ node -e '
 # Only the [package] version: the first `version =` line of Cargo.toml.
 sed -i '' "1,/^version = /s/^version = .*/version = \"$VERSION\"/" src-tauri/Cargo.toml
 
+BUNDLE_DIR="src-tauri/target/release/bundle"
+# A volume left mounted by an earlier build (its Finder window still open) makes
+# the .dmg step fail, as do the temporary images a failed one leaves behind.
+if [[ -d "/Volumes/DHQ Tray" ]]; then
+  hdiutil detach -quiet "/Volumes/DHQ Tray" || true
+fi
+rm -f "$BUNDLE_DIR"/dmg/rw.*.dmg
+
 echo "→ Building and signing"
 TAURI_SIGNING_PRIVATE_KEY="$(cat "$HOME/.tauri/dhq-tray.key")"
 TAURI_SIGNING_PRIVATE_KEY_PASSWORD="$(security find-generic-password -s dhq-tray-updater-key -w)"
 export TAURI_SIGNING_PRIVATE_KEY TAURI_SIGNING_PRIVATE_KEY_PASSWORD
 npm run tauri build -- --bundles app,dmg
 
-BUNDLE_DIR="src-tauri/target/release/bundle"
 PUBLISH_DIR="src-tauri/target/release/publish"
 rm -rf "$PUBLISH_DIR" && mkdir -p "$PUBLISH_DIR"
 # GitHub replaces spaces in asset names, so publish them without spaces.
@@ -139,7 +153,7 @@ node -e '
   "$PUBLISH_DIR/latest.json"
 
 echo "→ Committing and tagging $TAG"
-git add package.json package-lock.json src-tauri/tauri.conf.json src-tauri/Cargo.toml src-tauri/Cargo.lock
+git add "${VERSION_FILES[@]}"
 git diff --cached --quiet || git commit -q -m "chore(release): $TAG"
 git tag "$TAG"
 # Atomic: if main is rejected, the tag is not pushed either.
