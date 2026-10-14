@@ -33,6 +33,7 @@ interface ProjectsViewProps {
   onSelectProject: (project: Project) => void;
   onSelectDeployment: (watched: WatchedDeployment) => void;
   onOpenSettings: () => void;
+  onShowWhatsNew: () => void;
 }
 
 export function ProjectsView({
@@ -41,6 +42,7 @@ export function ProjectsView({
   onSelectProject,
   onSelectDeployment,
   onOpenSettings,
+  onShowWhatsNew,
 }: ProjectsViewProps) {
   const {
     data: projects,
@@ -168,7 +170,7 @@ export function ProjectsView({
       </div>
 
       <ScrollArea>
-        <UpdateBanner onShowReleaseNotes={onOpenSettings} />
+        <UpdateBanner onShowReleaseNotes={onShowWhatsNew} />
         {tab === "recent" ? (
           <RecentDeployments
             searchQuery={searchQuery}
