@@ -45,6 +45,8 @@ Needs a clean working tree. `scripts/release.sh` sets the version in `package.js
 - `DHQ-Tray.app.tar.gz` (+ signature) for the updater,
 - `latest.json`, which installed apps read from `https://github.com/emmgfx/dhq-tray/releases/latest/download/latest.json` (at launch and every 6 hours).
 
+The release notes become the GitHub release text and the `notes` field of `latest.json`, which the app shows ("What's new") before the user installs the update, so they are written for users. The `release` skill (`.claude/skills/release/SKILL.md`) has Claude draft them from the commits since the previous tag and pass them with `RELEASE_NOTES_FILE=<file outside the repo>`. Without that variable the script opens your editor (`$VISUAL`, `$EDITOR`, or `vi`) with those commits listed as comments. Empty notes cancel the release.
+
 Check afterwards that `latest.json` at that URL shows the new version. Building the `.dmg` opens a Finder window; close it, do not drag the app from it.
 
 Builds are Apple silicon only (`darwin-aarch64`). Supporting Intel needs `--target universal-apple-darwin` (and `rustup target add x86_64-apple-darwin`) plus a `darwin-x86_64` entry in `latest.json`.

@@ -15,5 +15,5 @@ macOS menu bar app (Tauri 2 + React + TypeScript) for DeployHQ deployments. Read
 - Checks: `npx tsc --noEmit`, `npm test`, `cargo test --manifest-path src-tauri/Cargo.toml`. CI runs the same on every push.
 - Signed builds need the updater key variables (see `MAINTAINING.md`). Each new build makes the Keychain ask the owner for a password, so batch changes before building.
 - To stop a local build, match its full path (`src-tauri/target/release/bundle/...`). A bare `pkill -f "DHQ Tray.app"` also kills the copy installed in `/Applications`.
-- Release with `npm run release -- <version>` only when the owner asks; it pushes and publishes publicly.
+- Release only when the owner asks, following `.claude/skills/release/SKILL.md` (it drafts the user-facing release notes); it pushes and publishes publicly.
 - DeployHQ API reference: <https://api.deployhq.com/docs> (OpenAPI at `/docs.json`). It is not always accurate; trust real responses and keep deserialization lenient.

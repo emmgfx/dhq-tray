@@ -634,6 +634,21 @@ input {
   font-weight: 500;
 }
 
+.release-notes-title {
+  margin: 0 22px 4px;
+  font-size: 11px;
+  font-weight: 600;
+  color: var(--color-text-secondary);
+}
+
+.release-notes {
+  margin: 0 22px 8px;
+  padding-left: 16px;
+  font-size: 11px;
+  line-height: 1.4;
+  color: var(--color-text-secondary);
+}
+
 .link-button {
   padding: 0;
   border: none;
