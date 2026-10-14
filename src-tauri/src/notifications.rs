@@ -60,16 +60,12 @@ pub fn request_permission() {
 pub fn permission() -> NotificationPermission {
     #[cfg(target_os = "macos")]
     {
-        use mac_usernotifications::AuthorizationStatus;
         return match mac_usernotifications::blocking::get_notification_settings() {
-            Ok(settings) => match settings.authorization_status {
-                AuthorizationStatus::Authorized
-                | AuthorizationStatus::Provisional
-                | AuthorizationStatus::Ephemeral => NotificationPermission::Authorized,
-                AuthorizationStatus::Denied => NotificationPermission::Denied,
-                AuthorizationStatus::NotDetermined => NotificationPermission::NotDetermined,
-                _ => NotificationPermission::Unknown,
-            },
+            Ok(settings) => {
+                let permission = permission_from(settings.authorization_status);
+                remember_authorization(permission);
+                permission
+            }
             Err(error) => {
                 eprintln!("Could not read notification settings: {error}");
                 NotificationPermission::Unknown
@@ -80,6 +76,42 @@ pub fn permission() -> NotificationPermission {
     NotificationPermission::Unknown
 }
 
+#[cfg(target_os = "macos")]
+fn permission_from(status: mac_usernotifications::AuthorizationStatus) -> NotificationPermission {
+    use mac_usernotifications::AuthorizationStatus;
+    match status {
+        AuthorizationStatus::Authorized
+        | AuthorizationStatus::Provisional
+        | AuthorizationStatus::Ephemeral => NotificationPermission::Authorized,
+        AuthorizationStatus::Denied => NotificationPermission::Denied,
+        AuthorizationStatus::NotDetermined => NotificationPermission::NotDetermined,
+        _ => NotificationPermission::Unknown,
+    }
+}
+
+fn remember_authorization(permission: NotificationPermission) {
+    IS_MODERN_API_AUTHORIZED.store(
+        matches!(permission, NotificationPermission::Authorized),
+        Ordering::SeqCst,
+    );
+}
+
+/// Whether the modern API may be used now. Permission can be granted in
+/// System Settings after launch, so a refusal is checked again each time.
+#[cfg(target_os = "macos")]
+async fn is_modern_api_authorized() -> bool {
+    if IS_MODERN_API_AUTHORIZED.load(Ordering::SeqCst) {
+        return true;
+    }
+    match mac_usernotifications::get_notification_settings().await {
+        Ok(settings) => {
+            remember_authorization(permission_from(settings.authorization_status));
+            IS_MODERN_API_AUTHORIZED.load(Ordering::SeqCst)
+        }
+        Err(_) => false,
+    }
+}
+
 /// Runs when the user clicks a notification.
 pub type OnClick = Box<dyn FnOnce() + Send + 'static>;
 
@@ -87,19 +119,20 @@ pub type OnClick = Box<dyn FnOnce() + Send + 'static>;
 /// `on_click` only works with the modern API (not the AppleScript fallback).
 pub fn show(title: &str, body: &str, sound: Option<&str>, on_click: Option<OnClick>) {
     #[cfg(target_os = "macos")]
-    if !IS_MODERN_API_AUTHORIZED.load(Ordering::SeqCst) {
-        show_with_apple_script(title, body, sound);
-        return;
-    }
-    #[cfg(target_os = "macos")]
     {
-        let notification = mac_usernotifications::Notification::new()
-            .title(title)
-            .message(body)
-            .maybe_sound(sound);
+        let (title, body) = (title.to_owned(), body.to_owned());
+        let sound = sound.map(str::to_owned);
         // The async API waits for macOS without requiring the main run loop to
         // be idle at that instant (the check that made notify-rust drop them).
         tauri::async_runtime::spawn(async move {
+            if !is_modern_api_authorized().await {
+                show_with_apple_script(&title, &body, sound.as_deref());
+                return;
+            }
+            let notification = mac_usernotifications::Notification::new()
+                .title(&title)
+                .message(&body)
+                .maybe_sound(sound);
             let handle = match notification.send().await {
                 Ok(handle) => handle,
                 Err(error) => {
