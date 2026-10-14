@@ -1,7 +1,7 @@
 use std::collections::{HashMap, HashSet};
 use std::sync::atomic::AtomicBool;
 use std::sync::Mutex;
-use std::time::SystemTime;
+use std::time::{Duration, SystemTime};
 
 use reqwest::Client;
 
@@ -11,6 +11,10 @@ use crate::deployment_watcher::WatchedDeployment;
 use crate::error::{AppError, AppResult};
 use crate::preferences::Preferences;
 use crate::watched_projects::WatchedProject;
+
+const CONNECT_TIMEOUT: Duration = Duration::from_secs(10);
+/// Generous: `recent_commits` asks DeployHQ to fetch from the remote first.
+const REQUEST_TIMEOUT: Duration = Duration::from_secs(60);
 
 pub struct AppState {
     pub http: Client,
@@ -42,6 +46,10 @@ impl AppState {
         Self {
             http: Client::builder()
                 .user_agent(concat!("dhq-tray/", env!("CARGO_PKG_VERSION")))
+                // reqwest waits forever by default, and one stalled request would
+                // hold up the poller (it checks projects one after another).
+                .connect_timeout(CONNECT_TIMEOUT)
+                .timeout(REQUEST_TIMEOUT)
                 .build()
                 .expect("failed to build HTTP client"),
             api_health: ApiHealth::default(),
