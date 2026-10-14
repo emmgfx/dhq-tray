@@ -31,6 +31,11 @@ if [[ -n "$(git status --porcelain)" ]]; then
   echo "The working tree has uncommitted changes; commit or stash them first." >&2
   exit 1
 fi
+git fetch -q origin main --tags
+if [[ "$(git rev-parse HEAD)" != "$(git rev-parse origin/main)" ]]; then
+  echo "Release from an up-to-date main: run git checkout main && git pull first." >&2
+  exit 1
+fi
 if git rev-parse "$TAG" >/dev/null 2>&1; then
   echo "Tag $TAG already exists." >&2
   exit 1
@@ -112,7 +117,8 @@ echo "→ Committing and tagging $TAG"
 git add package.json package-lock.json src-tauri/tauri.conf.json src-tauri/Cargo.toml src-tauri/Cargo.lock
 git diff --cached --quiet || git commit -q -m "chore(release): $TAG"
 git tag "$TAG"
-git push -q origin HEAD "$TAG"
+# Atomic: if main is rejected, the tag is not pushed either.
+git push -q --atomic origin HEAD:main "$TAG"
 
 echo "→ Publishing GitHub release"
 gh release create "$TAG" \
