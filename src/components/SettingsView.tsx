@@ -24,13 +24,15 @@ import type {
 } from "../types";
 import { ScrollArea } from "./ScrollArea";
 import { useAppUpdate } from "../appUpdate";
-import { parseReleaseNotes } from "../releaseNotes";
+import { releaseNotesSince } from "../releaseNotes";
 import { Switch } from "./Switch";
 
 interface SettingsViewProps {
   settings: SettingsSummary | null;
   onSaved: () => void;
   onCancel?: () => void;
+  /** Opens the list of changes in the available update. */
+  onShowWhatsNew?: () => void;
 }
 
 const NOTIFICATION_LEVEL_LABELS: Record<NotificationLevel, string> = {
@@ -39,7 +41,12 @@ const NOTIFICATION_LEVEL_LABELS: Record<NotificationLevel, string> = {
   off: "Off",
 };
 
-export function SettingsView({ settings, onSaved, onCancel }: SettingsViewProps) {
+export function SettingsView({
+  settings,
+  onSaved,
+  onCancel,
+  onShowWhatsNew,
+}: SettingsViewProps) {
   const [account, setAccount] = useState(settings?.account ?? "");
   const [email, setEmail] = useState(settings?.email ?? "");
   const [apiKey, setApiKey] = useState("");
@@ -50,10 +57,13 @@ export function SettingsView({ settings, onSaved, onCancel }: SettingsViewProps)
   const [opensAtLogin, setOpensAtLogin] = useState<boolean | null>(null);
   const [appVersion, setAppVersion] = useState("");
   const { state: updateState, checkForUpdates, installUpdate } = useAppUpdate();
-  const releaseNotes =
-    updateState.status === "available" || updateState.status === "installing"
-      ? parseReleaseNotes(updateState.update.body)
-      : [];
+  const hasReleaseNotes =
+    (updateState.status === "available" || updateState.status === "installing") &&
+    releaseNotesSince(
+      updateState.update.body,
+      updateState.update.version,
+      updateState.update.currentVersion,
+    ).length > 0;
   const [notificationPermission, setNotificationPermission] =
     useState<NotificationPermission | null>(null);
 
@@ -289,15 +299,12 @@ export function SettingsView({ settings, onSaved, onCancel }: SettingsViewProps)
               )}
             </li>
           </ul>
-          {releaseNotes.length > 0 && (
-            <>
-              <h3 className="release-notes-title">What's new</h3>
-              <ul className="release-notes">
-                {releaseNotes.map((item, index) => (
-                  <li key={index}>{item}</li>
-                ))}
-              </ul>
-            </>
+          {hasReleaseNotes && onShowWhatsNew && (
+            <p className="settings-note">
+              <button className="link-button" onClick={onShowWhatsNew}>
+                What's new
+              </button>
+            </p>
           )}
           {updateState.status === "error" && (
             <p className="settings-note">Could not check for updates: {updateState.message}</p>

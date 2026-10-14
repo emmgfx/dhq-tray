@@ -41,6 +41,12 @@ if git rev-parse "$TAG" >/dev/null 2>&1; then
   exit 1
 fi
 
+# Same checks as CI, before asking for notes and spending a signed build.
+echo "→ Running checks"
+npx tsc --noEmit
+npm test
+cargo test --manifest-path src-tauri/Cargo.toml
+
 PREVIOUS_TAG="$(git describe --tags --abbrev=0 2>/dev/null || true)"
 NOTES_DRAFT="$(mktemp -t dhq-tray-release-notes)"
 trap 'rm -f "$NOTES_DRAFT"' EXIT
@@ -93,14 +99,32 @@ INSTALLER="DHQ-Tray_${VERSION}_aarch64.dmg"
 cp "$BUNDLE_DIR/macos/DHQ Tray.app.tar.gz" "$PUBLISH_DIR/$UPDATE_ARCHIVE"
 cp "$BUNDLE_DIR/dmg/DHQ Tray_${VERSION}_aarch64.dmg" "$PUBLISH_DIR/$INSTALLER"
 printf '%s\n' "$RELEASE_NOTES" >"$PUBLISH_DIR/notes.md"
+# The previous manifest carries the notes of earlier releases (none on the first one).
+PREVIOUS_MANIFEST="$PUBLISH_DIR/previous-latest.json"
+curl -fsSL "https://github.com/$REPO/releases/latest/download/latest.json" -o "$PREVIOUS_MANIFEST" ||
+  echo '{}' >"$PREVIOUS_MANIFEST"
 
+# latest.json carries the notes of the last few releases under "## <version>"
+# headings, so the app can list every change since the installed version.
 node -e '
   const fs = require("fs");
-  const [version, tag, repo, platform, archive, signaturePath, notesPath, outPath] =
+  const [version, tag, repo, platform, archive, signaturePath, notesPath, previousPath, outPath] =
     process.argv.slice(1);
+  const MAX_VERSIONS = 10;
+  const previous = JSON.parse(fs.readFileSync(previousPath, "utf8"));
+  let previousNotes = (previous.notes || "").trim();
+  // Manifests before 0.1.8 have one version'"'"'s notes and no heading.
+  if (previousNotes && previous.version && !/^## /m.test(previousNotes)) {
+    previousNotes = `## ${previous.version}\n${previousNotes}`;
+  }
+  const sections = previousNotes
+    .split(/^(?=## )/m)
+    .map((section) => section.trim())
+    .filter((section) => section && !section.startsWith(`## ${version}\n`));
+  sections.unshift(`## ${version}\n${fs.readFileSync(notesPath, "utf8").trim()}`);
   const manifest = {
     version,
-    notes: fs.readFileSync(notesPath, "utf8").trim(),
+    notes: sections.slice(0, MAX_VERSIONS).join("\n\n"),
     pub_date: new Date().toISOString(),
     platforms: {
       [platform]: {
@@ -111,7 +135,8 @@ node -e '
   };
   fs.writeFileSync(outPath, JSON.stringify(manifest, null, 2) + "\n");
 ' "$VERSION" "$TAG" "$REPO" "$PLATFORM" "$UPDATE_ARCHIVE" \
-  "$BUNDLE_DIR/macos/DHQ Tray.app.tar.gz.sig" "$PUBLISH_DIR/notes.md" "$PUBLISH_DIR/latest.json"
+  "$BUNDLE_DIR/macos/DHQ Tray.app.tar.gz.sig" "$PUBLISH_DIR/notes.md" "$PREVIOUS_MANIFEST" \
+  "$PUBLISH_DIR/latest.json"
 
 echo "→ Committing and tagging $TAG"
 git add package.json package-lock.json src-tauri/tauri.conf.json src-tauri/Cargo.toml src-tauri/Cargo.lock

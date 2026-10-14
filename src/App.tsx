@@ -8,13 +8,15 @@ import { type HomeTab, ProjectsView } from "./components/ProjectsView";
 import { ProjectView } from "./components/ProjectView";
 import { DeployView } from "./components/DeployView";
 import { DeploymentView } from "./components/DeploymentView";
+import { WhatsNewView } from "./components/WhatsNewView";
 
 type Route =
   | { name: "projects" }
   | { name: "project"; project: Project }
   | { name: "deploy"; project: Project; target: DeployTarget; branch: string }
   | { name: "deployment"; watched: WatchedDeployment }
-  | { name: "settings" };
+  | { name: "settings" }
+  | { name: "whats_new"; back: Route };
 
 export default function App() {
   // `undefined` while loading, `null` when no credentials are stored.
@@ -37,6 +39,8 @@ export default function App() {
       case "deployment":
       case "settings":
         return { name: "projects" };
+      case "whats_new":
+        return route.back;
       case "projects":
         return null;
     }
@@ -114,8 +118,18 @@ export default function App() {
         settings={settings}
         onSaved={reloadSettings}
         onCancel={settings ? () => navigate("back", { name: "projects" }) : undefined}
+        onShowWhatsNew={
+          settings
+            ? () => navigate("forward", { name: "whats_new", back: { name: "settings" } })
+            : undefined
+        }
       />
     );
+  }
+
+  if (route.name === "whats_new") {
+    const back = route.back;
+    return <WhatsNewView onBack={() => navigate("back", back)} />;
   }
 
   if (route.name === "deploy") {
@@ -164,6 +178,9 @@ export default function App() {
       onSelectProject={(project) => navigate("forward", { name: "project", project })}
       onSelectDeployment={(watched) => navigate("forward", { name: "deployment", watched })}
       onOpenSettings={() => navigate("forward", { name: "settings" })}
+      onShowWhatsNew={() =>
+        navigate("forward", { name: "whats_new", back: { name: "projects" } })
+      }
     />
   );
 }

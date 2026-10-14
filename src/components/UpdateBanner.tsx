@@ -1,8 +1,8 @@
 import { useAppUpdate } from "../appUpdate";
-import { parseReleaseNotes } from "../releaseNotes";
+import { releaseNotesSince } from "../releaseNotes";
 
 interface UpdateBannerProps {
-  /** Settings lists what changed in the new version. */
+  /** Opens the screen listing what changed since the installed version. */
   onShowReleaseNotes: () => void;
 }
 
@@ -10,12 +10,14 @@ interface UpdateBannerProps {
 export function UpdateBanner({ onShowReleaseNotes }: UpdateBannerProps) {
   const { state, installUpdate } = useAppUpdate();
   if (state.status !== "available" && state.status !== "installing") return null;
-  const hasReleaseNotes = parseReleaseNotes(state.update.body).length > 0;
+  const { update } = state;
+  const hasReleaseNotes =
+    releaseNotesSince(update.body, update.version, update.currentVersion).length > 0;
 
   return (
     <div className="update-banner">
       <span>
-        DHQ Tray {state.update.version} is available
+        DHQ Tray {update.version} is available
         {hasReleaseNotes && (
           <>
             {" "}

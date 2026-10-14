@@ -5,6 +5,7 @@
 //! while after the tray is opened, slow otherwise, and paused while the user
 //! is away (the Mac being asleep or unused).
 
+use std::sync::atomic::Ordering;
 use std::time::{Duration, SystemTime};
 
 use tauri::{AppHandle, Emitter, Manager};
@@ -164,17 +165,27 @@ async fn poll_watched_projects(app: &AppHandle) {
     let _ = app.emit(RECENT_DEPLOYMENTS_UPDATED_EVENT, ());
 }
 
-/// Forgets a project's recent deployments (it is no longer watched).
+/// Forgets a project's recent deployments (it is no longer watched). Watching
+/// it again starts with a silent first look, so deployments that ended while
+/// it was not watched are not announced.
 pub fn forget_project(app: &AppHandle, permalink: &str) {
-    let removed = app
-        .state::<AppState>()
-        .recent_deployments
-        .lock()
-        .unwrap()
-        .remove(permalink);
+    let state = app.state::<AppState>();
+    state.polled_projects.lock().unwrap().remove(permalink);
+    let removed = state.recent_deployments.lock().unwrap().remove(permalink);
     if removed.is_some() {
         let _ = app.emit(RECENT_DEPLOYMENTS_UPDATED_EVENT, ());
     }
+}
+
+/// Forgets everything seen so far, e.g. because it belongs to another account:
+/// each watched project starts again with a silent first look.
+pub fn reset(app: &AppHandle) {
+    let state = app.state::<AppState>();
+    state.seen_deployments.lock().unwrap().clear();
+    state.polled_projects.lock().unwrap().clear();
+    state.recent_deployments.lock().unwrap().clear();
+    state.has_unseen_failure.store(false, Ordering::SeqCst);
+    let _ = app.emit(RECENT_DEPLOYMENTS_UPDATED_EVENT, ());
 }
 
 /// Polls right away, e.g. so a newly watched project shows up without waiting.
