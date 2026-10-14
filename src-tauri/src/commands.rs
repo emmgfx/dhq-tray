@@ -53,7 +53,7 @@ pub async fn save_credentials(
         key => key.to_string(),
     };
     let new_credentials = Credentials {
-        account: account.trim().to_string(),
+        account: credentials::normalize_account(&account)?,
         email: email.trim().to_string(),
         api_key,
     };
