@@ -4,10 +4,13 @@
 #
 # Usage: npm run release -- <version>     e.g. npm run release -- 0.2.0
 #
-# The release notes, which the app shows before updating, list the commit
-# subjects since the previous tag. To write them by hand instead, pass a file:
-#   RELEASE_NOTES_FILE=~/dhq-tray-notes.md npm run release -- 0.2.0
-# (outside the repository: the working tree must be clean)
+# The release notes are shown in the app before updating and become the GitHub
+# release text, so they are written for users. Pass them as a Markdown file
+# outside the repository (the working tree must be clean); the release skill
+# (.claude/skills/release) drafts them from the commits since the previous tag:
+#   RELEASE_NOTES_FILE=/tmp/notes.md npm run release -- 0.2.0
+# Without it, the script opens your editor to write them. Empty notes cancel
+# the release.
 #
 # Needs on this Mac:
 #   - the "DHQ Tray Local Signing" certificate in the login Keychain (code signing)
@@ -34,14 +37,25 @@ if git rev-parse "$TAG" >/dev/null 2>&1; then
 fi
 
 PREVIOUS_TAG="$(git describe --tags --abbrev=0 2>/dev/null || true)"
+NOTES_DRAFT="$(mktemp -t dhq-tray-release-notes)"
+trap 'rm -f "$NOTES_DRAFT"' EXIT
 if [[ -n "${RELEASE_NOTES_FILE:-}" ]]; then
-  RELEASE_NOTES="$(cat "$RELEASE_NOTES_FILE")"
+  cp "$RELEASE_NOTES_FILE" "$NOTES_DRAFT"
 else
-  RELEASE_NOTES="$(git log --no-merges --format='- %s' "${PREVIOUS_TAG:+$PREVIOUS_TAG..}HEAD" \
-    | grep -v '^- chore(release):' || true)"
+  {
+    echo ""
+    echo "# What's new in DHQ Tray $VERSION, for users: one \"- \" line per change."
+    echo "# Lines starting with # are ignored. Empty notes cancel the release."
+    echo "#"
+    echo "# Commits since ${PREVIOUS_TAG:-the start}:"
+    git log --no-merges --format='#   %s' "${PREVIOUS_TAG:+$PREVIOUS_TAG..}HEAD" | grep -v '^#   chore(release):' || true
+  } >"$NOTES_DRAFT"
+  ${VISUAL:-${EDITOR:-vi}} "$NOTES_DRAFT"
 fi
+# Drop comments and leading blank lines; $(...) drops the trailing ones.
+RELEASE_NOTES="$( (grep -v '^#' "$NOTES_DRAFT" || true) | sed '/./,$!d')"
 if [[ -z "$RELEASE_NOTES" ]]; then
-  echo "No release notes: there are no commits since ${PREVIOUS_TAG:-the start}." >&2
+  echo "Release cancelled: the notes are empty." >&2
   exit 1
 fi
 echo "→ Release notes"
