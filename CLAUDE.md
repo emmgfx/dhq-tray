@@ -12,7 +12,7 @@ macOS menu bar app (Tauri 2 + React + TypeScript) for DeployHQ deployments. Read
 ## Working on it
 
 - Rust lives in `~/.cargo/bin`, which may not be on the shell's PATH: `export PATH="$HOME/.cargo/bin:$PATH"`.
-- Checks: `npx tsc --noEmit`, `npm test`, `cargo test --manifest-path src-tauri/Cargo.toml`. CI runs the same on every push.
+- Checks: `npx tsc --noEmit`, `npm test`, `cargo test --manifest-path src-tauri/Cargo.toml`, `cargo fmt --manifest-path src-tauri/Cargo.toml --check` and `cargo clippy --manifest-path src-tauri/Cargo.toml --all-targets -- -D warnings`. CI runs the same on every push.
 - Signed builds need the updater key variables (see `MAINTAINING.md`). Each new build makes the Keychain ask the owner for a password, so batch changes before building.
 - To stop a local build, match its full path (`src-tauri/target/release/bundle/...`). A bare `pkill -f "DHQ Tray.app"` also kills the copy installed in `/Applications`.
 - Release only when the owner asks, following `.claude/skills/release/SKILL.md` (it drafts the user-facing release notes); it pushes and publishes publicly.

@@ -141,6 +141,8 @@ pub async fn list_deploy_targets(
 /// Queues a deployment of the latest commit of `branch` and starts tracking it
 /// so a native notification is shown when it finishes.
 #[tauri::command]
+// Tauri commands receive the webview's named arguments as parameters.
+#[allow(clippy::too_many_arguments)]
 pub async fn trigger_deployment(
     app: AppHandle,
     state: State<'_, AppState>,
@@ -369,8 +371,16 @@ pub async fn redeploy(
     let client = DeployHqClient::new(&state.http, &state.api_health, &credentials);
     let identifier = &watched.deployment.identifier;
     let deployment = match action {
-        Redeploy::Retry => client.retry_deployment(&watched.project, identifier).await?,
-        Redeploy::Rollback => client.rollback_deployment(&watched.project, identifier).await?,
+        Redeploy::Retry => {
+            client
+                .retry_deployment(&watched.project, identifier)
+                .await?
+        }
+        Redeploy::Rollback => {
+            client
+                .rollback_deployment(&watched.project, identifier)
+                .await?
+        }
     };
     let redeployed = WatchedDeployment {
         deployment,

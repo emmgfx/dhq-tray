@@ -24,7 +24,8 @@ impl ApiHealth {
     pub fn record_throttled(&self, retry_after: Option<Duration>) {
         let mut backoff = self.backoff.lock().unwrap();
         backoff.consecutive_throttles += 1;
-        let delay = backoff_delay(backoff.consecutive_throttles).max(retry_after.unwrap_or_default());
+        let delay =
+            backoff_delay(backoff.consecutive_throttles).max(retry_after.unwrap_or_default());
         backoff.until = Some(SystemTime::now() + delay);
         eprintln!("DeployHQ is throttling; pausing background polling for {delay:?}");
     }

@@ -179,7 +179,10 @@ fn move_window_below_tray_icon(app: &AppHandle, window: &WebviewWindow) {
     };
     let window_size = window_size.to_logical::<f64>(window_scale_factor);
     let screen_scale_factor = icon.monitor.scale_factor();
-    let screen_origin = icon.monitor.position().to_logical::<f64>(screen_scale_factor);
+    let screen_origin = icon
+        .monitor
+        .position()
+        .to_logical::<f64>(screen_scale_factor);
     let screen_size = icon.monitor.size().to_logical::<f64>(screen_scale_factor);
 
     let min_x = screen_origin.x + SCREEN_EDGE_MARGIN;
