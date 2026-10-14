@@ -106,6 +106,8 @@ pub async fn list_deploy_targets(
 /// Queues a deployment of the latest commit of `branch` and starts tracking it
 /// so a native notification is shown when it finishes.
 #[tauri::command]
+// Tauri commands receive the webview's named arguments as parameters.
+#[allow(clippy::too_many_arguments)]
 pub async fn trigger_deployment(
     app: AppHandle,
     state: State<'_, AppState>,
