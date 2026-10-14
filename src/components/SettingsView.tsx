@@ -24,6 +24,7 @@ import type {
 } from "../types";
 import { ScrollArea } from "./ScrollArea";
 import { useAppUpdate } from "../appUpdate";
+import { parseReleaseNotes } from "../releaseNotes";
 import { Switch } from "./Switch";
 
 interface SettingsViewProps {
@@ -49,6 +50,10 @@ export function SettingsView({ settings, onSaved, onCancel }: SettingsViewProps)
   const [opensAtLogin, setOpensAtLogin] = useState<boolean | null>(null);
   const [appVersion, setAppVersion] = useState("");
   const { state: updateState, checkForUpdates, installUpdate } = useAppUpdate();
+  const releaseNotes =
+    updateState.status === "available" || updateState.status === "installing"
+      ? parseReleaseNotes(updateState.update.body)
+      : [];
   const [notificationPermission, setNotificationPermission] =
     useState<NotificationPermission | null>(null);
 
@@ -284,6 +289,16 @@ export function SettingsView({ settings, onSaved, onCancel }: SettingsViewProps)
               )}
             </li>
           </ul>
+          {releaseNotes.length > 0 && (
+            <>
+              <h3 className="release-notes-title">What's new</h3>
+              <ul className="release-notes">
+                {releaseNotes.map((item, index) => (
+                  <li key={index}>{item}</li>
+                ))}
+              </ul>
+            </>
+          )}
           {updateState.status === "error" && (
             <p className="settings-note">Could not check for updates: {updateState.message}</p>
           )}

@@ -4,6 +4,11 @@
 #
 # Usage: npm run release -- <version>     e.g. npm run release -- 0.2.0
 #
+# The release notes, which the app shows before updating, list the commit
+# subjects since the previous tag. To write them by hand instead, pass a file:
+#   RELEASE_NOTES_FILE=~/dhq-tray-notes.md npm run release -- 0.2.0
+# (outside the repository: the working tree must be clean)
+#
 # Needs on this Mac:
 #   - the "DHQ Tray Local Signing" certificate in the login Keychain (code signing)
 #   - ~/.tauri/dhq-tray.key (updater signing key) and its password stored in the
@@ -27,6 +32,20 @@ if git rev-parse "$TAG" >/dev/null 2>&1; then
   echo "Tag $TAG already exists." >&2
   exit 1
 fi
+
+PREVIOUS_TAG="$(git describe --tags --abbrev=0 2>/dev/null || true)"
+if [[ -n "${RELEASE_NOTES_FILE:-}" ]]; then
+  RELEASE_NOTES="$(cat "$RELEASE_NOTES_FILE")"
+else
+  RELEASE_NOTES="$(git log --no-merges --format='- %s' "${PREVIOUS_TAG:+$PREVIOUS_TAG..}HEAD" \
+    | grep -v '^- chore(release):' || true)"
+fi
+if [[ -z "$RELEASE_NOTES" ]]; then
+  echo "No release notes: there are no commits since ${PREVIOUS_TAG:-the start}." >&2
+  exit 1
+fi
+echo "→ Release notes"
+echo "$RELEASE_NOTES"
 
 echo "→ Setting version $VERSION"
 npm version "$VERSION" --no-git-tag-version --allow-same-version >/dev/null
@@ -54,12 +73,15 @@ UPDATE_ARCHIVE="DHQ-Tray.app.tar.gz"
 INSTALLER="DHQ-Tray_${VERSION}_aarch64.dmg"
 cp "$BUNDLE_DIR/macos/DHQ Tray.app.tar.gz" "$PUBLISH_DIR/$UPDATE_ARCHIVE"
 cp "$BUNDLE_DIR/dmg/DHQ Tray_${VERSION}_aarch64.dmg" "$PUBLISH_DIR/$INSTALLER"
+printf '%s\n' "$RELEASE_NOTES" >"$PUBLISH_DIR/notes.md"
 
 node -e '
   const fs = require("fs");
-  const [version, tag, repo, platform, archive, signaturePath, outPath] = process.argv.slice(1);
+  const [version, tag, repo, platform, archive, signaturePath, notesPath, outPath] =
+    process.argv.slice(1);
   const manifest = {
     version,
+    notes: fs.readFileSync(notesPath, "utf8").trim(),
     pub_date: new Date().toISOString(),
     platforms: {
       [platform]: {
@@ -70,7 +92,7 @@ node -e '
   };
   fs.writeFileSync(outPath, JSON.stringify(manifest, null, 2) + "\n");
 ' "$VERSION" "$TAG" "$REPO" "$PLATFORM" "$UPDATE_ARCHIVE" \
-  "$BUNDLE_DIR/macos/DHQ Tray.app.tar.gz.sig" "$PUBLISH_DIR/latest.json"
+  "$BUNDLE_DIR/macos/DHQ Tray.app.tar.gz.sig" "$PUBLISH_DIR/notes.md" "$PUBLISH_DIR/latest.json"
 
 echo "→ Committing and tagging $TAG"
 git add package.json package-lock.json src-tauri/tauri.conf.json src-tauri/Cargo.toml src-tauri/Cargo.lock
@@ -81,6 +103,6 @@ git push -q origin HEAD "$TAG"
 echo "→ Publishing GitHub release"
 gh release create "$TAG" \
   "$PUBLISH_DIR/$INSTALLER" "$PUBLISH_DIR/$UPDATE_ARCHIVE" "$PUBLISH_DIR/latest.json" \
-  --repo "$REPO" --title "DHQ Tray $VERSION" --generate-notes
+  --repo "$REPO" --title "DHQ Tray $VERSION" --notes-file "$PUBLISH_DIR/notes.md"
 
 echo "✓ Released $TAG"

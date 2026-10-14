@@ -168,7 +168,7 @@ export function ProjectsView({
       </div>
 
       <ScrollArea>
-        <UpdateBanner />
+        <UpdateBanner onShowReleaseNotes={onOpenSettings} />
         {tab === "recent" ? (
           <RecentDeployments
             searchQuery={searchQuery}

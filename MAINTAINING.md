@@ -45,6 +45,8 @@ Needs a clean working tree. `scripts/release.sh` sets the version in `package.js
 - `DHQ-Tray.app.tar.gz` (+ signature) for the updater,
 - `latest.json`, which installed apps read from `https://github.com/emmgfx/dhq-tray/releases/latest/download/latest.json` (at launch and every 6 hours).
 
+The release notes go both into the GitHub release and into the `notes` field of `latest.json`, which the app shows ("What's new") before the user installs the update. By default they are the commit subjects since the previous tag, so write commit subjects for users; to write the notes by hand, pass `RELEASE_NOTES_FILE=~/dhq-tray-notes.md` (outside the repository, which must be clean). The script prints them before building.
+
 Check afterwards that `latest.json` at that URL shows the new version. Building the `.dmg` opens a Finder window; close it, do not drag the app from it.
 
 Builds are Apple silicon only (`darwin-aarch64`). Supporting Intel needs `--target universal-apple-darwin` (and `rustup target add x86_64-apple-darwin`) plus a `darwin-x86_64` entry in `latest.json`.
