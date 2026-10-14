@@ -47,6 +47,8 @@ Needs a clean working tree on an up-to-date `main`, and stops if the type check 
 
 The release notes become the GitHub release text and part of the `notes` field of `latest.json`, which the app shows ("What's new") before the user installs the update, so they are written for users. `latest.json` keeps the notes of the last 10 releases under `## <version>` headings, taken from the previous `latest.json`, so someone who skipped versions sees every change since the one installed. The `release` skill (`.claude/skills/release/SKILL.md`) has Claude draft them from the commits since the previous tag and pass them with `RELEASE_NOTES_FILE=<file outside the repo>`. Without that variable the script opens your editor (`$VISUAL`, `$EDITOR`, or `vi`) with those commits listed as comments. Empty notes cancel the release.
 
+If the build fails, the script puts the version files back, so it can be run again as is. It also ejects a `DHQ Tray` volume left mounted by an earlier build, a common reason for the `.dmg` step to fail.
+
 Check afterwards that `latest.json` at that URL shows the new version. Building the `.dmg` opens a Finder window; close it, do not drag the app from it.
 
 Builds are Apple silicon only (`darwin-aarch64`). Supporting Intel needs `--target universal-apple-darwin` (and `rustup target add x86_64-apple-darwin`) plus a `darwin-x86_64` entry in `latest.json`.
