@@ -5,6 +5,7 @@
 //! while after the tray is opened, slow otherwise, and paused while the user
 //! is away (the Mac being asleep or unused).
 
+use std::sync::atomic::Ordering;
 use std::time::{Duration, SystemTime};
 
 use tauri::{AppHandle, Emitter, Manager};
@@ -172,6 +173,17 @@ pub fn forget_project(app: &AppHandle, permalink: &str) {
     if removed.is_some() {
         let _ = app.emit(RECENT_DEPLOYMENTS_UPDATED_EVENT, ());
     }
+}
+
+/// Forgets everything seen so far, e.g. because it belongs to another account:
+/// each watched project starts again with a silent first look.
+pub fn reset(app: &AppHandle) {
+    let state = app.state::<AppState>();
+    state.seen_deployments.lock().unwrap().clear();
+    state.polled_projects.lock().unwrap().clear();
+    state.recent_deployments.lock().unwrap().clear();
+    state.has_unseen_failure.store(false, Ordering::SeqCst);
+    let _ = app.emit(RECENT_DEPLOYMENTS_UPDATED_EVENT, ());
 }
 
 /// Polls right away, e.g. so a newly watched project shows up without waiting.
