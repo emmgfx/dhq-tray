@@ -170,7 +170,13 @@ async fn poll_until_finished(app: &AppHandle, mut watched: WatchedDeployment) {
         MAX_WATCH_DURATION.as_secs() / 3600
     );
     let open = open_deployment_on_click(app, &watched);
-    notify(app, &watched.project_name, &body, Outcome::Failure, Some(open));
+    notify(
+        app,
+        &watched.project_name,
+        &body,
+        Outcome::Failure,
+        Some(open),
+    );
 }
 
 fn notify_started(app: &AppHandle, watched: &WatchedDeployment) {
