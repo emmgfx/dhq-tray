@@ -41,6 +41,12 @@ if git rev-parse "$TAG" >/dev/null 2>&1; then
   exit 1
 fi
 
+# Same checks as CI, before asking for notes and spending a signed build.
+echo "→ Running checks"
+npx tsc --noEmit
+npm test
+cargo test --manifest-path src-tauri/Cargo.toml
+
 PREVIOUS_TAG="$(git describe --tags --abbrev=0 2>/dev/null || true)"
 NOTES_DRAFT="$(mktemp -t dhq-tray-release-notes)"
 trap 'rm -f "$NOTES_DRAFT"' EXIT

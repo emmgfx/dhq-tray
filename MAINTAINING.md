@@ -39,7 +39,7 @@ To back them up again: attach `~/.tauri/dhq-tray.key` (hidden folder: ⌘⇧G in
 npm run release -- 0.2.0
 ```
 
-Needs a clean working tree. `scripts/release.sh` sets the version in `package.json`, `tauri.conf.json` and `Cargo.toml`, builds and signs, commits and tags `v0.2.0`, pushes, and creates the GitHub release with:
+Needs a clean working tree on an up-to-date `main`, and stops if the type check or the tests fail. `scripts/release.sh` sets the version in `package.json`, `tauri.conf.json` and `Cargo.toml`, builds and signs, commits and tags `v0.2.0`, pushes, and creates the GitHub release with:
 
 - `DHQ-Tray_<version>_aarch64.dmg` for fresh installs,
 - `DHQ-Tray.app.tar.gz` (+ signature) for the updater,
