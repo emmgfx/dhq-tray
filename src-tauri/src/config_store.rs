@@ -2,6 +2,7 @@
 
 use std::fs;
 use std::path::PathBuf;
+use std::sync::atomic::{AtomicU64, Ordering};
 
 use serde::{de::DeserializeOwned, Serialize};
 use tauri::{AppHandle, Manager};
@@ -34,6 +35,13 @@ pub fn save<T: Serialize>(app: &AppHandle, file_name: &str, value: &T) -> AppRes
             AppError::Other(format!("Could not create config directory: {error}"))
         })?;
     }
-    fs::write(path, serde_json::to_string_pretty(value)?)
+    // Written next to it and renamed over it, so a crash or power loss mid-write
+    // leaves the previous file instead of a truncated one that fails to load.
+    // Each save gets its own temporary file, as watchers can save concurrently.
+    static NEXT_SAVE_ID: AtomicU64 = AtomicU64::new(0);
+    let save_id = NEXT_SAVE_ID.fetch_add(1, Ordering::Relaxed);
+    let temporary_path = path.with_extension(format!("json.{save_id}.tmp"));
+    fs::write(&temporary_path, serde_json::to_string_pretty(value)?)
+        .and_then(|()| fs::rename(&temporary_path, &path))
         .map_err(|error| AppError::Other(format!("Could not save {file_name}: {error}")))
 }
