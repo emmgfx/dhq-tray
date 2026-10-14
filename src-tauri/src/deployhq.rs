@@ -127,11 +127,13 @@ fn seconds_from_number_or_string<'de, D>(deserializer: D) -> Result<Option<f64>,
 where
     D: serde::Deserializer<'de>,
 {
-    Ok(match Option::<serde_json::Value>::deserialize(deserializer)? {
-        Some(serde_json::Value::Number(number)) => number.as_f64(),
-        Some(serde_json::Value::String(text)) => text.trim().parse().ok(),
-        _ => None,
-    })
+    Ok(
+        match Option::<serde_json::Value>::deserialize(deserializer)? {
+            Some(serde_json::Value::Number(number)) => number.as_f64(),
+            Some(serde_json::Value::String(text)) => text.trim().parse().ok(),
+            _ => None,
+        },
+    )
 }
 
 /// Treats an explicit JSON `null` like a missing field (`#[serde(default)]`
@@ -153,7 +155,11 @@ struct DeploymentPage {
 impl Deployment {
     /// Human-readable list of the servers being deployed to.
     pub fn target_name(&self) -> String {
-        let names: Vec<&str> = self.servers.iter().map(|server| server.name.as_str()).collect();
+        let names: Vec<&str> = self
+            .servers
+            .iter()
+            .map(|server| server.name.as_str())
+            .collect();
         if names.is_empty() {
             "unknown servers".to_string()
         } else {
@@ -267,10 +273,7 @@ impl<'a> DeployHqClient<'a> {
                     response.headers().get(header::RETRY_AFTER),
                 );
             }
-            if !is_throttled(response.status())
-                || !is_retryable
-                || attempt == MAX_ATTEMPTS
-            {
+            if !is_throttled(response.status()) || !is_retryable || attempt == MAX_ATTEMPTS {
                 break response;
             }
             let delay = retry_after(&response)
@@ -323,7 +326,10 @@ impl<'a> DeployHqClient<'a> {
     pub async fn latest_revision(&self, project: &str, branch: &str) -> AppResult<String> {
         let path = format!("/projects/{project}/repository/latest_revision");
         let revision: Revision = self
-            .send(self.request(Method::GET, &path).query(&[("branch", branch)]))
+            .send(
+                self.request(Method::GET, &path)
+                    .query(&[("branch", branch)]),
+            )
             .await?;
         revision
             .reference
@@ -364,7 +370,10 @@ impl<'a> DeployHqClient<'a> {
     ) -> AppResult<Vec<Deployment>> {
         let path = format!("/projects/{project}/deployments");
         let page: DeploymentPage = self
-            .send(self.request(Method::GET, &path).query(&[("per_page", page_size)]))
+            .send(
+                self.request(Method::GET, &path)
+                    .query(&[("per_page", page_size)]),
+            )
             .await?;
         Ok(page.records)
     }

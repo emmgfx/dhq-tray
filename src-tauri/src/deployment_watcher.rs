@@ -171,7 +171,13 @@ fn notify_started(app: &AppHandle, watched: &WatchedDeployment) {
         None => format!("Deploying to {target}"),
     };
     let open = open_deployment_on_click(app, watched);
-    notify(app, &watched.project_name, &body, Outcome::Started, Some(open));
+    notify(
+        app,
+        &watched.project_name,
+        &body,
+        Outcome::Started,
+        Some(open),
+    );
 }
 
 /// Reports a finished deployment: works out why it failed, if it did, updates
@@ -227,7 +233,11 @@ async fn failure_reason(app: &AppHandle, watched: &WatchedDeployment) -> Option<
             let state = app.state::<AppState>();
             let credentials = state.credentials().ok()??;
             DeployHqClient::new(&state.http, &state.api_health, &credentials)
-                .step_logs(&watched.project, &watched.deployment.identifier, step_identifier)
+                .step_logs(
+                    &watched.project,
+                    &watched.deployment.identifier,
+                    step_identifier,
+                )
                 .await
                 .ok()
                 .and_then(|entries| last_error_message(&entries))
@@ -344,10 +354,16 @@ mod tests {
             entry("error", "Permission denied"),
             entry("info", "Cleaning up"),
         ];
-        assert_eq!(last_error_message(&entries).as_deref(), Some("Permission denied"));
+        assert_eq!(
+            last_error_message(&entries).as_deref(),
+            Some("Permission denied")
+        );
 
         let without_errors = [entry("info", "Connecting"), entry("info", "  ")];
-        assert_eq!(last_error_message(&without_errors).as_deref(), Some("Connecting"));
+        assert_eq!(
+            last_error_message(&without_errors).as_deref(),
+            Some("Connecting")
+        );
         assert_eq!(last_error_message(&[]), None);
     }
 
@@ -357,7 +373,10 @@ mod tests {
             log_summary: Some("\n  Build command failed  \nmore".to_owned()),
             ..Default::default()
         };
-        assert_eq!(summary_reason(&deployment).as_deref(), Some("Build command failed"));
+        assert_eq!(
+            summary_reason(&deployment).as_deref(),
+            Some("Build command failed")
+        );
         assert_eq!(summary_reason(&Deployment::default()), None);
     }
 

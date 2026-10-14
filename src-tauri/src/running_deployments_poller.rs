@@ -76,11 +76,7 @@ enum Sighting {
     AnnounceFinished,
 }
 
-fn classify(
-    deployment: &Deployment,
-    is_known: bool,
-    is_first_look_at_project: bool,
-) -> Sighting {
+fn classify(deployment: &Deployment, is_known: bool, is_first_look_at_project: bool) -> Sighting {
     match (is_known, deployment.is_finished()) {
         (true, _) => Sighting::Ignore,
         (false, false) => Sighting::Track {
@@ -106,7 +102,10 @@ async fn poll_watched_projects(app: &AppHandle) {
         {
             Ok(deployments) => deployments,
             Err(error) => {
-                eprintln!("Polling deployments of {} failed: {error}", project.permalink);
+                eprintln!(
+                    "Polling deployments of {} failed: {error}",
+                    project.permalink
+                );
                 continue;
             }
         };
@@ -153,11 +152,15 @@ async fn poll_watched_projects(app: &AppHandle) {
     }
 
     // Projects unwatched meanwhile leave the Recent tab.
-    state.recent_deployments.lock().unwrap().retain(|permalink, _| {
-        watched_projects
-            .iter()
-            .any(|project| &project.permalink == permalink)
-    });
+    state
+        .recent_deployments
+        .lock()
+        .unwrap()
+        .retain(|permalink, _| {
+            watched_projects
+                .iter()
+                .any(|project| &project.permalink == permalink)
+        });
     let _ = app.emit(RECENT_DEPLOYMENTS_UPDATED_EVENT, ());
 }
 
@@ -194,16 +197,23 @@ mod tests {
     fn first_look_tracks_running_silently_and_skips_finished() {
         assert_eq!(
             classify(&deployment("running"), false, true),
-            Sighting::Track { announce_start: false }
+            Sighting::Track {
+                announce_start: false
+            }
         );
-        assert_eq!(classify(&deployment("completed"), false, true), Sighting::Ignore);
+        assert_eq!(
+            classify(&deployment("completed"), false, true),
+            Sighting::Ignore
+        );
     }
 
     #[test]
     fn new_deployments_after_first_look_are_reported() {
         assert_eq!(
             classify(&deployment("pending"), false, false),
-            Sighting::Track { announce_start: true }
+            Sighting::Track {
+                announce_start: true
+            }
         );
         assert_eq!(
             classify(&deployment("failed"), false, false),
@@ -213,7 +223,13 @@ mod tests {
 
     #[test]
     fn known_deployments_are_ignored() {
-        assert_eq!(classify(&deployment("running"), true, false), Sighting::Ignore);
-        assert_eq!(classify(&deployment("completed"), true, false), Sighting::Ignore);
+        assert_eq!(
+            classify(&deployment("running"), true, false),
+            Sighting::Ignore
+        );
+        assert_eq!(
+            classify(&deployment("completed"), true, false),
+            Sighting::Ignore
+        );
     }
 }

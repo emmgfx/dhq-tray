@@ -334,8 +334,16 @@ pub async fn redeploy(
     let client = DeployHqClient::new(&state.http, &state.api_health, &credentials);
     let identifier = &watched.deployment.identifier;
     let deployment = match action {
-        Redeploy::Retry => client.retry_deployment(&watched.project, identifier).await?,
-        Redeploy::Rollback => client.rollback_deployment(&watched.project, identifier).await?,
+        Redeploy::Retry => {
+            client
+                .retry_deployment(&watched.project, identifier)
+                .await?
+        }
+        Redeploy::Rollback => {
+            client
+                .rollback_deployment(&watched.project, identifier)
+                .await?
+        }
     };
     let redeployed = WatchedDeployment {
         deployment,

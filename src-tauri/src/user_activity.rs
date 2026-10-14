@@ -15,8 +15,9 @@ fn time_since_last_input() -> Duration {
     const ANY_INPUT_EVENT_TYPE: u32 = u32::MAX; // kCGAnyInputEventType
 
     // SAFETY: plain C function with value arguments and no side effects.
-    let seconds =
-        unsafe { CGEventSourceSecondsSinceLastEventType(COMBINED_SESSION_STATE, ANY_INPUT_EVENT_TYPE) };
+    let seconds = unsafe {
+        CGEventSourceSecondsSinceLastEventType(COMBINED_SESSION_STATE, ANY_INPUT_EVENT_TYPE)
+    };
     Duration::from_secs_f64(seconds.max(0.0))
 }
 
