@@ -20,6 +20,7 @@ export function toDeployTargets({ server_groups, servers }: DeployTargets): Depl
         environment: server.environment,
         branch: server.preferred_branch || server.branch,
         lastRevision: server.last_revision,
+        groupIdentifier: server.server_group_identifier,
       })),
   ];
 }
@@ -29,5 +30,13 @@ export function deploymentTargetsTarget(deployment: Deployment, target: DeployTa
     target.kind === "group"
       ? server.server_group_identifier === target.identifier
       : server.identifier === target.identifier,
+  );
+}
+
+/** Whether deployments to the target are followed, given a watched project's muted targets. */
+export function isTargetFollowed(target: DeployTarget, mutedTargets: string[]) {
+  return (
+    !mutedTargets.includes(target.identifier) &&
+    !(target.groupIdentifier && mutedTargets.includes(target.groupIdentifier))
   );
 }

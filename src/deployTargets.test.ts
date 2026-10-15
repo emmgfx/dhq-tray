@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { deploymentTargetsTarget, toDeployTargets } from "./deployTargets";
+import { deploymentTargetsTarget, isTargetFollowed, toDeployTargets } from "./deployTargets";
 import type { DeployTarget, Deployment, Server } from "./types";
 
 const server = (overrides: Partial<Server>): Server => ({
@@ -62,5 +62,27 @@ describe("deploymentTargetsTarget", () => {
     expect(deploymentTargetsTarget(deployment, target("server", "srv"))).toBe(true);
     expect(deploymentTargetsTarget(deployment, target("group", "grp"))).toBe(true);
     expect(deploymentTargetsTarget(deployment, target("server", "other"))).toBe(false);
+  });
+});
+
+describe("isTargetFollowed", () => {
+  const server: DeployTarget = {
+    identifier: "srv",
+    name: "Staging",
+    kind: "server",
+    environment: null,
+    branch: null,
+    lastRevision: null,
+    groupIdentifier: "grp",
+  };
+
+  it("follows everything when nothing is muted", () => {
+    expect(isTargetFollowed(server, [])).toBe(true);
+  });
+
+  it("mutes a target directly or through its group", () => {
+    expect(isTargetFollowed(server, ["srv"])).toBe(false);
+    expect(isTargetFollowed(server, ["grp"])).toBe(false);
+    expect(isTargetFollowed(server, ["other"])).toBe(true);
   });
 });

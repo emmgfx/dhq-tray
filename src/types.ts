@@ -115,6 +115,8 @@ export interface RecentCommits {
 export interface WatchedProject {
   permalink: string;
   name: string;
+  /** Servers and server groups whose deployments are not followed; empty follows everything. */
+  muted_targets: string[];
 }
 
 export interface WatchedDeployment {
@@ -135,4 +137,6 @@ export interface DeployTarget {
   branch: string | null;
   lastRevision: string | null;
   serverCount?: number;
+  /** For a server, the group it belongs to. */
+  groupIdentifier?: string | null;
 }

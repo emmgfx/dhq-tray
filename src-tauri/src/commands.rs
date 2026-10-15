@@ -195,11 +195,18 @@ pub fn set_project_watched(
     watched: bool,
 ) -> AppResult<Vec<WatchedProject>> {
     let mut projects = state.watched_projects();
+    let is_already_watched = projects
+        .iter()
+        .any(|project| project.permalink == permalink);
+    if watched && is_already_watched {
+        return Ok(projects);
+    }
     projects.retain(|project| project.permalink != permalink);
     if watched {
         projects.push(WatchedProject {
             permalink: permalink.clone(),
             name,
+            muted_targets: Vec::new(),
         });
         projects.sort_by_key(|project| project.name.to_lowercase());
     }
@@ -210,6 +217,34 @@ pub fn set_project_watched(
     } else {
         running_deployments_poller::forget_project(&app, &permalink);
     }
+    Ok(projects)
+}
+
+/// Stops or resumes following deployments to one server or server group of a
+/// watched project.
+#[tauri::command]
+pub fn set_target_muted(
+    app: AppHandle,
+    state: State<'_, AppState>,
+    permalink: String,
+    target_identifier: String,
+    muted: bool,
+) -> AppResult<Vec<WatchedProject>> {
+    let mut projects = state.watched_projects();
+    let project = projects
+        .iter_mut()
+        .find(|project| project.permalink == permalink)
+        .ok_or_else(|| AppError::Other("This project is not being watched".into()))?;
+    project
+        .muted_targets
+        .retain(|identifier| identifier != &target_identifier);
+    if muted {
+        project.muted_targets.push(target_identifier);
+    }
+    watched_projects::save(&app, &projects)?;
+    state.set_watched_projects(projects.clone());
+    // Refreshes the Recent tab with the new filter.
+    running_deployments_poller::poll_now(&app);
     Ok(projects)
 }
 

@@ -835,3 +835,20 @@ input {
     opacity: 0.15;
   }
 }
+
+/* A deploy target with its bell, shown when the project is watched. */
+.followable-row {
+  display: flex;
+  align-items: center;
+  padding-left: 4px;
+}
+
+.followable-row .grouped-list-row {
+  flex: 1;
+  min-width: 0;
+  padding-left: 4px;
+}
+
+.watch-button:disabled {
+  opacity: 0.3;
+}

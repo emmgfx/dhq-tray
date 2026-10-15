@@ -1,15 +1,19 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { openUrl } from "@tauri-apps/plugin-opener";
 import {
+  type ErrorDetails,
   listDeployTargets,
   listRecentDeployments,
   listTrackedDeployments,
+  listWatchedProjects,
   onDeploymentUpdated,
+  setTargetMuted,
+  toErrorDetails,
 } from "../api";
 import { ErrorAlert } from "./ErrorAlert";
-import { deploymentTargetsTarget, toDeployTargets } from "../deployTargets";
+import { deploymentTargetsTarget, isTargetFollowed, toDeployTargets } from "../deployTargets";
 import { isDeploymentInProgress } from "../deploymentStatus";
-import type { DeployTarget, Deployment, Project } from "../types";
+import type { DeployTarget, Deployment, Project, WatchedProject } from "../types";
 import { DeployTargetRow } from "./DeployTargetRow";
 import { useCachedResource } from "../useCachedResource";
 import { ScrollArea } from "./ScrollArea";
@@ -45,6 +49,31 @@ export function ProjectView({ account, project, onBack, onDeployTarget }: Projec
     isRefreshing: isRefreshingDeployments,
     refresh: refreshRecentDeployments,
   } = useCachedResource(`recent-deployments:${project.permalink}`, fetchRecentDeployments);
+
+  // Set when the project is watched, so each target can be muted or followed.
+  const [watchedProject, setWatchedProject] = useState<WatchedProject | null>(null);
+  const [followError, setFollowError] = useState<ErrorDetails | null>(null);
+  useEffect(() => {
+    listWatchedProjects().then((watched) =>
+      setWatchedProject(
+        watched.find((candidate) => candidate.permalink === project.permalink) ?? null,
+      ),
+    );
+  }, [project.permalink]);
+
+  const toggleFollowed = async (target: DeployTarget) => {
+    if (!watchedProject) return;
+    const muted = !watchedProject.muted_targets.includes(target.identifier);
+    try {
+      const watched = await setTargetMuted(project.permalink, target.identifier, muted);
+      setWatchedProject(
+        watched.find((candidate) => candidate.permalink === project.permalink) ?? null,
+      );
+      setFollowError(null);
+    } catch (toggleError) {
+      setFollowError(toErrorDetails(toggleError));
+    }
+  };
 
   const screenRef = useRef<HTMLDivElement>(null);
   useArrowKeyNavigation(screenRef);
@@ -140,6 +169,18 @@ export function ProjectView({ account, project, onBack, onDeployTarget }: Projec
           deployment={deployment}
           isDeploying={deployment !== undefined && isDeploymentInProgress(deployment)}
           onDeploy={() => branch && onDeployTarget(target, branch)}
+          follow={
+            watchedProject
+              ? {
+                  isFollowed: isTargetFollowed(target, watchedProject.muted_targets),
+                  isMutedByGroup: Boolean(
+                    target.groupIdentifier &&
+                    watchedProject.muted_targets.includes(target.groupIdentifier),
+                  ),
+                  onToggle: () => toggleFollowed(target),
+                }
+              : undefined
+          }
         />
       );
     });
@@ -176,6 +217,7 @@ export function ProjectView({ account, project, onBack, onDeployTarget }: Projec
 
       <ScrollArea>
         {error && <ErrorAlert error={error} />}
+        {followError && <ErrorAlert error={followError} />}
         {!targets && !error && (
           <p className="empty-message">
             <Spinner />
