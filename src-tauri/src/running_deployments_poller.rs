@@ -126,7 +126,11 @@ async fn poll_watched_projects(app: &AppHandle) {
                 .lock()
                 .unwrap()
                 .contains_key(&identifier);
+            // Recorded as seen even when muted, so unmuting does not announce it.
             let was_seen = !state.seen_deployments.lock().unwrap().insert(identifier);
+            if project.is_muted(&deployment) {
+                continue;
+            }
             let watched = WatchedDeployment {
                 project: project.permalink.clone(),
                 project_name: project.name.clone(),

@@ -68,6 +68,9 @@ export const listWatchedProjects = () => invoke<WatchedProject[]>("list_watched_
 export const setProjectWatched = (permalink: string, name: string, watched: boolean) =>
   invoke<WatchedProject[]>("set_project_watched", { permalink, name, watched });
 
+export const setTargetMuted = (permalink: string, targetIdentifier: string, muted: boolean) =>
+  invoke<WatchedProject[]>("set_target_muted", { permalink, targetIdentifier, muted });
+
 export const listTrackedDeployments = () => invoke<WatchedDeployment[]>("list_tracked_deployments");
 
 /** Latest deployments of the watched projects, as of the last poll (unsorted). */

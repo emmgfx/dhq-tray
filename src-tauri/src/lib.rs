@@ -74,6 +74,7 @@ pub fn run() {
             commands::trigger_deployment,
             commands::list_watched_projects,
             commands::set_project_watched,
+            commands::set_target_muted,
             commands::list_tracked_deployments,
             commands::list_recent_activity,
             commands::get_preferences,

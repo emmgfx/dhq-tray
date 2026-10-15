@@ -1,4 +1,4 @@
-import { ChevronRight } from "lucide-react";
+import { Bell, ChevronRight } from "lucide-react";
 import { deploymentStatusLabel } from "../deploymentStatus";
 import { formatDuration, formatRelativeTime, shortRevision } from "../formatters";
 import { ICON_SIZE, ICON_STROKE_WIDTH } from "../icons";
@@ -13,6 +13,13 @@ interface DeployTargetRowProps {
   deployment: Deployment | undefined;
   isDeploying: boolean;
   onDeploy: () => void;
+  /** Present when the project is watched: whether deployments to this target notify. */
+  follow?: {
+    isFollowed: boolean;
+    /** Set when the target's group is muted, which decides for it. */
+    isMutedByGroup: boolean;
+    onToggle: () => void;
+  };
 }
 
 export function DeployTargetRow({
@@ -22,6 +29,7 @@ export function DeployTargetRow({
   deployment,
   isDeploying,
   onDeploy,
+  follow,
 }: DeployTargetRowProps) {
   const details = [
     target.environment,
@@ -33,7 +41,14 @@ export function DeployTargetRow({
   const canDeploy = Boolean(branch) && !isDeploying;
 
   return (
-    <li className={deployment ? `status-${deployment.status}` : undefined}>
+    <li
+      className={
+        [follow && "followable-row", deployment && `status-${deployment.status}`]
+          .filter(Boolean)
+          .join(" ") || undefined
+      }
+    >
+      {follow && <FollowButton targetName={target.name} {...follow} />}
       <button
         className="grouped-list-row target-row"
         onClick={onDeploy}
@@ -62,5 +77,35 @@ export function DeployTargetRow({
         />
       </button>
     </li>
+  );
+}
+
+function FollowButton({
+  targetName,
+  isFollowed,
+  isMutedByGroup,
+  onToggle,
+}: NonNullable<DeployTargetRowProps["follow"]> & { targetName: string }) {
+  const label = isMutedByGroup
+    ? "Muted with its server group"
+    : isFollowed
+      ? `Stop notifying deployments to ${targetName}`
+      : `Notify deployments to ${targetName}`;
+  return (
+    <button
+      className={`icon-button watch-button${isFollowed ? " is-watched" : ""}`}
+      onClick={onToggle}
+      disabled={isMutedByGroup}
+      aria-pressed={isFollowed}
+      aria-label={label}
+      title={label}
+    >
+      <Bell
+        size={ICON_SIZE}
+        strokeWidth={ICON_STROKE_WIDTH}
+        fill={isFollowed ? "currentColor" : "none"}
+        aria-hidden
+      />
+    </button>
   );
 }
