@@ -844,6 +844,8 @@ input {
 }
 
 .followable-row .grouped-list-row {
+  flex: 1;
+  min-width: 0;
   padding-left: 4px;
 }
 
