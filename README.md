@@ -17,7 +17,7 @@ macOS menu bar app for quick access to [DeployHQ](https://www.deployhq.com) depl
 - The tray icon shows a dot while a deployment is running and a "!" when one failed since the panel was last opened.
 - Polling pauses while there has been no keyboard/mouse input for 5 minutes (or the Mac sleeps) and resumes when you are back.
 - Project and server lists are cached and shown instantly, then refreshed in the background.
-- Deploying opens a screen with the summary, the pending commits (between the target's deployed revision and the branch head) and the options: copy config files, run build commands and use build cache (preselected), plus deploy all files (no start revision, full upload). The revision shown is the one deployed.
+- Deploying opens a screen with the summary, the pending commits (between the target's deployed revision and the branch head: shown at once from what DeployHQ has synced, then refreshed from the repository in the background, with pull request merges shown by their title) and the options: copy config files, run build commands and use build cache (preselected), plus deploy all files (no start revision, full upload). The revision shown is the one deployed.
 - Each server and group shows when it was last deployed, from the project's recent deployments.
 - Settings: open at login, notification level (all / only failures / off) and sound, app version and Quit. Preferences are stored in `preferences.json` in the app config directory.
 

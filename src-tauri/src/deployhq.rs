@@ -194,21 +194,14 @@ pub struct Commit {
     pub author: String,
     pub timestamp: Option<String>,
     pub short_message: Option<String>,
+    /// Full message; not documented by DeployHQ, so it may be missing.
+    pub message: Option<String>,
 }
 
 #[derive(Debug, Default, Deserialize)]
 #[serde(default)]
 struct RecentCommitsResponse {
     commits: Vec<Commit>,
-}
-
-#[derive(Debug, Serialize)]
-pub struct RecentCommits {
-    /// Newest first.
-    pub commits: Vec<Commit>,
-    /// False when DeployHQ could not fetch from the remote and returned what it
-    /// had synced, so the newest commits may be missing.
-    pub is_synced_with_remote: bool,
 }
 
 pub struct DeployRequest<'a> {
@@ -336,25 +329,24 @@ impl<'a> DeployHqClient<'a> {
             .ok_or_else(|| AppError::Other(format!("No revisions found on branch {branch}")))
     }
 
-    /// Recent commits of `branch`, newest first. Asks DeployHQ to fetch from the
-    /// remote first; if that is unavailable, returns what it already has synced.
-    pub async fn recent_commits(&self, project: &str, branch: &str) -> AppResult<RecentCommits> {
+    /// Recent commits of `branch`, newest first. With `update_repository`,
+    /// DeployHQ first fetches from the remote, which can take a long time;
+    /// without it, it answers right away with what it has already synced.
+    pub async fn recent_commits(
+        &self,
+        project: &str,
+        branch: &str,
+        update_repository: bool,
+    ) -> AppResult<Vec<Commit>> {
         let path = format!("/projects/{project}/repository/recent_commits");
-        let fetch = |update_repository: bool| {
-            let mut query = vec![("branch", branch)];
-            if update_repository {
-                query.push(("update", "1"));
-            }
-            self.send::<RecentCommitsResponse>(self.request(Method::GET, &path).query(&query))
-        };
-        let (response, is_synced_with_remote) = match fetch(true).await {
-            Err(AppError::Unavailable) => (fetch(false).await?, false),
-            result => (result?, true),
-        };
-        Ok(RecentCommits {
-            commits: response.commits,
-            is_synced_with_remote,
-        })
+        let mut query = vec![("branch", branch)];
+        if update_repository {
+            query.push(("update", "1"));
+        }
+        let response: RecentCommitsResponse = self
+            .send(self.request(Method::GET, &path).query(&query))
+            .await?;
+        Ok(response.commits)
     }
 
     pub async fn get_deployment(&self, project: &str, identifier: &str) -> AppResult<Deployment> {

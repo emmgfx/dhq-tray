@@ -4,6 +4,7 @@ import { type ErrorDetails, listRecentCommits, toErrorDetails, triggerDeployment
 import { ErrorAlert } from "./ErrorAlert";
 import { formatRelativeTime, shortRevision } from "../formatters";
 import { ICON_SIZE, ICON_STROKE_WIDTH } from "../icons";
+import { describeCommit, pendingCommits, summarizeAuthors } from "../pendingChanges";
 import type { Commit, DeployOptions, DeployTarget, Deployment, Project } from "../types";
 import { ScrollArea } from "./ScrollArea";
 import { Switch } from "./Switch";
@@ -30,39 +31,64 @@ const DEPLOY_OPTION_LABELS: Record<keyof DeployOptions, string> = {
   use_build_cache: "Use build cache",
 };
 
-/** Commits newer than `deployedRevision`; all of them if it is not in the list. */
-function pendingCommits(commits: Commit[], deployedRevision: string | null) {
-  const deployedIndex = deployedRevision
-    ? commits.findIndex((commit) => commit.ref === deployedRevision)
-    : -1;
-  return {
-    commits: deployedIndex === -1 ? commits : commits.slice(0, deployedIndex),
-    // The deployed revision is older than the commits the API returns.
-    isTruncated: Boolean(deployedRevision) && deployedIndex === -1,
-  };
-}
+/** Commits listed before "Show more"; long lists bury the options. */
+const COLLAPSED_COMMIT_COUNT = 8;
+/** Hiding fewer than this many commits is not worth the extra click. */
+const MIN_HIDDEN_COMMIT_COUNT = 3;
+
+/** Whether the commits shown include those DeployHQ fetches from the remote. */
+type RemoteSync = "syncing" | "synced" | "failed";
 
 export function DeployView({ project, target, branch, onBack, onDeployed }: DeployViewProps) {
   const [commits, setCommits] = useState<Commit[] | null>(null);
-  const [isSyncedWithRemote, setIsSyncedWithRemote] = useState(true);
+  const [remoteSync, setRemoteSync] = useState<RemoteSync>("syncing");
   const [commitsError, setCommitsError] = useState<ErrorDetails | null>(null);
+  const [showAllCommits, setShowAllCommits] = useState(false);
   const [options, setOptions] = useState<DeployOptions>(DEFAULT_DEPLOY_OPTIONS);
   // Without a start revision DeployHQ uploads every file, not just the changes.
   const [deployAllFiles, setDeployAllFiles] = useState(!target.lastRevision);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [deployError, setDeployError] = useState<ErrorDetails | null>(null);
 
+  // Fetching from the remote can take long, so the commits DeployHQ already has
+  // are shown first. The fetch starts after that read: running both at once can
+  // make DeployHQ answer the quick one as busy while it updates the repository.
   useEffect(() => {
-    listRecentCommits(project.permalink, branch)
-      .then((recent) => {
-        setCommits(recent.commits);
-        setIsSyncedWithRemote(recent.is_synced_with_remote);
-      })
-      .catch((error) => setCommitsError(toErrorDetails(error)));
+    let isCurrent = true;
+    const loadCommits = async () => {
+      try {
+        const known = await listRecentCommits(project.permalink, branch, false);
+        if (isCurrent) setCommits(known);
+      } catch (error) {
+        if (isCurrent) setCommitsError(toErrorDetails(error));
+      }
+      if (!isCurrent) return;
+      try {
+        const fetched = await listRecentCommits(project.permalink, branch, true);
+        if (!isCurrent) return;
+        setCommits(fetched);
+        setCommitsError(null);
+        setRemoteSync("synced");
+      } catch {
+        if (isCurrent) setRemoteSync("failed");
+      }
+    };
+    loadCommits();
+    return () => {
+      isCurrent = false;
+    };
   }, [project.permalink, branch]);
 
   const latestRevision = commits?.[0]?.ref ?? null;
   const pending = commits ? pendingCommits(commits, target.lastRevision) : null;
+  const isCollapsed =
+    !showAllCommits &&
+    (pending?.commits.length ?? 0) >= COLLAPSED_COMMIT_COUNT + MIN_HIDDEN_COMMIT_COUNT;
+  const visibleCommits = isCollapsed
+    ? (pending?.commits.slice(0, COLLAPSED_COMMIT_COUNT) ?? [])
+    : (pending?.commits ?? []);
+  const hiddenCommitCount = (pending?.commits.length ?? 0) - visibleCommits.length;
+  const oldestPendingTimestamp = pending?.commits[pending.commits.length - 1]?.timestamp ?? null;
 
   const handleDeploy = async () => {
     setIsSubmitting(true);
@@ -121,20 +147,29 @@ export function DeployView({ project, target, branch, onBack, onDeployed }: Depl
         </ul>
 
         <section>
-          <h2 className="section-title">
-            Changes
-            {pending &&
-              !deployAllFiles &&
-              ` (${pending.commits.length}${pending.isTruncated ? "+" : ""})`}
+          <h2 className="section-title section-title-with-status">
+            <span>
+              Changes
+              {pending &&
+                !deployAllFiles &&
+                ` (${pending.commits.length}${pending.isTruncated ? "+" : ""})`}
+            </span>
+            {commits && remoteSync === "syncing" && (
+              <span className="section-title-status">
+                <Spinner /> Checking for new commits
+              </span>
+            )}
           </h2>
-          {commitsError && <ErrorAlert error={commitsError} />}
-          {commits && !isSyncedWithRemote && (
+          {commitsError && !commits && remoteSync !== "syncing" && (
+            <ErrorAlert error={commitsError} />
+          )}
+          {commits && remoteSync === "failed" && (
             <p className="settings-note">
-              DeployHQ could not refresh the repository right now, so the newest commits may be
-              missing. The deployment uses the latest revision shown here.
+              DeployHQ could not fetch from the repository right now, so the newest commits may
+              be missing. The deployment uses the latest revision shown here.
             </p>
           )}
-          {!commits && !commitsError && (
+          {!commits && remoteSync === "syncing" && (
             <p className="empty-message">
               <Spinner />
             </p>
@@ -149,20 +184,51 @@ export function DeployView({ project, target, branch, onBack, onDeployed }: Depl
             <p className="settings-note">No new commits. This redeploys the current revision.</p>
           )}
           {pending && !deployAllFiles && pending.commits.length > 0 && (
-            <ul className="grouped-list commit-list">
-              {pending.commits.map((commit) => (
-                <li key={commit.ref} className="commit-row">
-                  <span className="list-row-main">
-                    <span className="list-row-title">{commit.short_message || commit.ref}</span>
-                    <span className="list-row-subtitle">
-                      <span className="monospace">{shortRevision(commit.ref)}</span> ·{" "}
-                      {commit.author}
-                      {commit.timestamp && ` · ${formatRelativeTime(commit.timestamp)}`}
-                    </span>
-                  </span>
-                </li>
-              ))}
-            </ul>
+            <>
+              <p className="settings-note">
+                By {summarizeAuthors(pending.commits)}
+                {oldestPendingTimestamp &&
+                  `, the oldest ${formatRelativeTime(oldestPendingTimestamp)}`}
+              </p>
+              <ul className="grouped-list commit-list">
+                {visibleCommits.map((commit) => {
+                  const description = describeCommit(commit);
+                  return (
+                    <li
+                      key={commit.ref}
+                      className={
+                        description.isBranchMerge ? "commit-row commit-row-merge" : "commit-row"
+                      }
+                    >
+                      <span className="list-row-main">
+                        <span className="list-row-title" title={description.title}>
+                          {description.title}
+                        </span>
+                        <span className="list-row-subtitle">
+                          {description.pullRequest !== null &&
+                            `PR #${description.pullRequest} · `}
+                          {commit.author}
+                          {commit.timestamp && ` · ${formatRelativeTime(commit.timestamp)}`}
+                        </span>
+                      </span>
+                      <span className="commit-revision monospace">
+                        {shortRevision(commit.ref)}
+                      </span>
+                    </li>
+                  );
+                })}
+                {hiddenCommitCount > 0 && (
+                  <li>
+                    <button
+                      className="list-row commit-list-toggle"
+                      onClick={() => setShowAllCommits(true)}
+                    >
+                      Show {hiddenCommitCount} more
+                    </button>
+                  </li>
+                )}
+              </ul>
+            </>
           )}
           {pending?.isTruncated && !deployAllFiles && (
             <p className="settings-note">Older commits are not shown.</p>
@@ -205,7 +271,7 @@ export function DeployView({ project, target, branch, onBack, onDeployed }: Depl
         <button
           className="button button-primary button-block"
           onClick={handleDeploy}
-          disabled={isSubmitting || (!commits && !commitsError)}
+          disabled={isSubmitting}
         >
           {isSubmitting ? "Starting…" : `Deploy ${branch} to ${target.name}`}
         </button>
