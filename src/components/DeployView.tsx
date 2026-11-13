@@ -164,7 +164,7 @@ export function DeployView({ project, target, branch, onBack, onDeployed }: Depl
             <ErrorAlert error={commitsError} />
           )}
           {commits && remoteSync === "failed" && (
-            <p className="settings-note">
+            <p className="section-note">
               DeployHQ could not fetch from the repository right now, so the newest commits may
               be missing. The deployment uses the latest revision shown here.
             </p>
@@ -175,17 +175,17 @@ export function DeployView({ project, target, branch, onBack, onDeployed }: Depl
             </p>
           )}
           {deployAllFiles && (
-            <p className="settings-note">
+            <p className="section-note">
               Full deployment: every file in {branch} is uploaded, not only the changes since the
               last deployment.
             </p>
           )}
           {pending && !deployAllFiles && pending.commits.length === 0 && (
-            <p className="settings-note">No new commits. This redeploys the current revision.</p>
+            <p className="section-note">No new commits. This redeploys the current revision.</p>
           )}
           {pending && !deployAllFiles && pending.commits.length > 0 && (
             <>
-              <p className="settings-note">
+              <p className="section-note">
                 By {summarizeAuthors(pending.commits)}
                 {oldestPendingTimestamp &&
                   `, the oldest ${formatRelativeTime(oldestPendingTimestamp)}`}
