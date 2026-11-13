@@ -164,7 +164,7 @@ export function DeployView({ project, target, branch, onBack, onDeployed }: Depl
             <ErrorAlert error={commitsError} />
           )}
           {commits && remoteSync === "failed" && (
-            <p className="settings-note">
+            <p className="section-note">
               DeployHQ could not fetch from the repository right now, so the newest commits may
               be missing. The deployment uses the latest revision shown here.
             </p>
@@ -175,29 +175,29 @@ export function DeployView({ project, target, branch, onBack, onDeployed }: Depl
             </p>
           )}
           {deployAllFiles && (
-            <p className="settings-note">
+            <p className="section-note">
               Full deployment: every file in {branch} is uploaded, not only the changes since the
               last deployment.
             </p>
           )}
           {pending && !deployAllFiles && pending.commits.length === 0 && (
-            <p className="settings-note">No new commits. This redeploys the current revision.</p>
+            <p className="section-note">No new commits. This redeploys the current revision.</p>
           )}
           {pending && !deployAllFiles && pending.commits.length > 0 && (
             <>
-              <p className="settings-note">
+              <p className="section-note">
                 By {summarizeAuthors(pending.commits)}
                 {oldestPendingTimestamp &&
                   `, the oldest ${formatRelativeTime(oldestPendingTimestamp)}`}
               </p>
               <ul className="grouped-list commit-list">
                 {visibleCommits.map((commit) => {
-                  const description = describeCommit(commit);
+                  const description = describeCommit(commit, branch);
                   return (
                     <li
                       key={commit.ref}
                       className={
-                        description.isBranchMerge ? "commit-row commit-row-merge" : "commit-row"
+                        description.isBranchSync ? "commit-row commit-row-merge" : "commit-row"
                       }
                     >
                       <span className="list-row-main">
