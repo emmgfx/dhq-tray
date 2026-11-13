@@ -291,7 +291,50 @@ input {
 
 .commit-row {
   display: flex;
+  align-items: center;
+  gap: 10px;
   padding: 7px 12px;
+}
+
+/* Branch merges carry no change of their own; keep them out of the way. */
+.commit-row-merge .list-row-title {
+  font-weight: 400;
+  color: var(--color-text-secondary);
+}
+
+.commit-revision {
+  flex-shrink: 0;
+  font-size: 11px;
+  color: var(--color-text-secondary);
+  user-select: text;
+}
+
+.commit-list-toggle {
+  justify-content: center;
+  padding: 7px 12px;
+  border-radius: 0;
+  color: var(--color-accent);
+  font-size: 12px;
+}
+
+.section-title-with-status {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+}
+
+.section-title-status {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  font-size: 11px;
+  font-weight: 400;
+  color: var(--color-text-secondary);
+}
+
+.section-title-status .spinner {
+  transform: scale(0.8);
 }
 
 .step-row {

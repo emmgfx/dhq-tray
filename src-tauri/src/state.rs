@@ -13,7 +13,7 @@ use crate::preferences::Preferences;
 use crate::watched_projects::WatchedProject;
 
 const CONNECT_TIMEOUT: Duration = Duration::from_secs(10);
-/// Generous: `recent_commits` asks DeployHQ to fetch from the remote first.
+/// Generous: `recent_commits` can ask DeployHQ to fetch from the remote first.
 const REQUEST_TIMEOUT: Duration = Duration::from_secs(60);
 
 pub struct AppState {

@@ -103,13 +103,8 @@ export interface Commit {
   author: string;
   timestamp: string | null;
   short_message: string | null;
-}
-
-export interface RecentCommits {
-  /** Newest first. */
-  commits: Commit[];
-  /** False when DeployHQ could not refresh the repository; newest commits may be missing. */
-  is_synced_with_remote: boolean;
+  /** Full message; not documented by DeployHQ, so it may be missing. */
+  message: string | null;
 }
 
 export interface WatchedProject {

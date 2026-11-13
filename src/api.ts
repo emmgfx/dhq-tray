@@ -2,9 +2,9 @@ import { invoke } from "@tauri-apps/api/core";
 import { listen, type UnlistenFn } from "@tauri-apps/api/event";
 import { clearCache } from "./responseCache";
 import type {
+  Commit,
   DeployTargets,
   DeployOptions,
-  RecentCommits,
   StepLogEntry,
   Deployment,
   NotificationPermission,
@@ -47,8 +47,13 @@ export interface TriggerDeploymentParams {
 export const triggerDeployment = (params: TriggerDeploymentParams) =>
   invoke<Deployment>("trigger_deployment", { ...params });
 
-export const listRecentCommits = (project: string, branch: string) =>
-  invoke<RecentCommits>("list_recent_commits", { project, branch });
+/**
+ * Recent commits of `branch`, newest first. `updateRepository` makes DeployHQ
+ * fetch from the remote first, which can take a long time; without it, the
+ * answer is quick but may miss the newest commits.
+ */
+export const listRecentCommits = (project: string, branch: string, updateRepository: boolean) =>
+  invoke<Commit[]>("list_recent_commits", { project, branch, updateRepository });
 
 export const listRecentDeployments = (project: string) =>
   invoke<Deployment[]>("list_recent_deployments", { project });

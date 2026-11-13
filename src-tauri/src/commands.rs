@@ -3,8 +3,8 @@ use tauri::{AppHandle, State};
 
 use crate::credentials::{self, Credentials};
 use crate::deployhq::{
-    DeployHqClient, DeployOptions, DeployRequest, Deployment, Project, RecentCommits, Server,
-    ServerGroup, StepLogEntry,
+    Commit, DeployHqClient, DeployOptions, DeployRequest, Deployment, Project, Server, ServerGroup,
+    StepLogEntry,
 };
 use crate::deployment_watcher::{self, WatchedDeployment};
 use crate::error::{AppError, AppResult};
@@ -308,10 +308,11 @@ pub async fn list_recent_commits(
     state: State<'_, AppState>,
     project: String,
     branch: String,
-) -> AppResult<RecentCommits> {
+    update_repository: bool,
+) -> AppResult<Vec<Commit>> {
     let credentials = state.require_credentials()?;
     DeployHqClient::new(&state.http, &state.api_health, &credentials)
-        .recent_commits(&project, &branch)
+        .recent_commits(&project, &branch, update_repository)
         .await
 }
 
