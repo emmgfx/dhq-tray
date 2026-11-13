@@ -192,12 +192,12 @@ export function DeployView({ project, target, branch, onBack, onDeployed }: Depl
               </p>
               <ul className="grouped-list commit-list">
                 {visibleCommits.map((commit) => {
-                  const description = describeCommit(commit);
+                  const description = describeCommit(commit, branch);
                   return (
                     <li
                       key={commit.ref}
                       className={
-                        description.isBranchMerge ? "commit-row commit-row-merge" : "commit-row"
+                        description.isBranchSync ? "commit-row commit-row-merge" : "commit-row"
                       }
                     >
                       <span className="list-row-main">

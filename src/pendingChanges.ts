@@ -16,33 +16,58 @@ export interface CommitDescription {
   title: string;
   /** Number of the pull request this commit merged, if any. */
   pullRequest: number | null;
-  /** A merge of one branch into another, with no change of its own to describe. */
-  isBranchMerge: boolean;
+  /** Branch this commit merged into the deployed one, if any. */
+  mergedBranch: string | null;
+  /** The deployed branch merged back into another one: no change of its own. */
+  isBranchSync: boolean;
 }
 
 const PULL_REQUEST_MERGE = /^Merge pull request #(\d+) from \S+/;
-const BRANCH_MERGE = /^Merge (remote-tracking )?branch(es)? /;
+// "Merge branch 'feature'", "Merge branch 'main' of github.com:org/repo",
+// "Merge remote-tracking branch 'origin/main' into feature".
+const BRANCH_MERGE = /^Merge (?:remote-tracking )?branch '([^']+)'(?: of \S+)?(?: into (\S+))?$/;
 
 function firstLine(text: string | null | undefined) {
   return text?.trim().split("\n")[0]?.trim() || null;
 }
 
+const withoutRemote = (branch: string) => branch.replace(/^origin\//, "");
+
 /**
- * What a commit changed, in words. GitHub's pull request merges become the
- * pull request title (the message's second paragraph) when the message has it.
+ * What a commit changed, in words, for a deployment of `deployedBranch`.
+ * GitHub's pull request merges become the pull request title (the message's
+ * second paragraph) when the message has it. DeployHQ does not say which
+ * branch a commit was made on, so the commits of merged branches stay listed.
  */
-export function describeCommit(commit: Commit): CommitDescription {
+export function describeCommit(commit: Commit, deployedBranch: string): CommitDescription {
   const subject = firstLine(commit.short_message) ?? firstLine(commit.message) ?? commit.ref;
+  const description: CommitDescription = {
+    title: subject,
+    pullRequest: null,
+    mergedBranch: null,
+    isBranchSync: false,
+  };
+
   const pullRequestMatch = PULL_REQUEST_MERGE.exec(subject);
   if (pullRequestMatch) {
     const body = commit.message?.trim().split("\n").slice(1).join("\n");
     return {
+      ...description,
       title: firstLine(body) ?? subject,
       pullRequest: Number(pullRequestMatch[1]),
-      isBranchMerge: false,
     };
   }
-  return { title: subject, pullRequest: null, isBranchMerge: BRANCH_MERGE.test(subject) };
+
+  const branchMatch = BRANCH_MERGE.exec(subject);
+  if (branchMatch) {
+    const source = withoutRemote(branchMatch[1]);
+    const target = branchMatch[2] ? withoutRemote(branchMatch[2]) : null;
+    if (source === deployedBranch || (target !== null && target !== deployedBranch)) {
+      return { ...description, isBranchSync: true };
+    }
+    return { ...description, title: `Merged ${source}`, mergedBranch: source };
+  }
+  return description;
 }
 
 /** "A", "A and B", "A, B and C". */

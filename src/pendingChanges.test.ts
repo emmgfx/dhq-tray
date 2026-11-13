@@ -28,44 +28,65 @@ describe("pendingCommits", () => {
 });
 
 describe("describeCommit", () => {
+  const describe = (overrides: Partial<Commit>) => describeCommit(commit(overrides), "main");
+
   it("uses the subject of a regular commit", () => {
-    expect(describeCommit(commit({ short_message: "Fix the login form" }))).toEqual({
+    expect(describe({ short_message: "Fix the login form" })).toEqual({
       title: "Fix the login form",
       pullRequest: null,
-      isBranchMerge: false,
+      mergedBranch: null,
+      isBranchSync: false,
     });
   });
 
   it("turns a pull request merge into the pull request title", () => {
-    const merge = commit({
+    const merge = {
       short_message: "Merge pull request #15 from emmgfx/deps-update",
       message: "Merge pull request #15 from emmgfx/deps-update\n\nUpdate dependencies\n\nMore text",
-    });
-    expect(describeCommit(merge)).toEqual({
-      title: "Update dependencies",
-      pullRequest: 15,
-      isBranchMerge: false,
-    });
+    };
+    expect(describe(merge)).toMatchObject({ title: "Update dependencies", pullRequest: 15 });
   });
 
   it("keeps the merge subject when the message has no pull request title", () => {
-    const merge = commit({ short_message: "Merge pull request #15 from emmgfx/deps-update" });
-    expect(describeCommit(merge)).toMatchObject({
+    const merge = { short_message: "Merge pull request #15 from emmgfx/deps-update" };
+    expect(describe(merge)).toMatchObject({
       title: "Merge pull request #15 from emmgfx/deps-update",
       pullRequest: 15,
     });
   });
 
-  it("flags branch merges", () => {
-    expect(describeCommit(commit({ short_message: "Merge branch 'main' into feature" })))
-      .toMatchObject({ isBranchMerge: true });
-    expect(describeCommit(commit({ short_message: "Merge remote-tracking branch 'origin/main'" })))
-      .toMatchObject({ isBranchMerge: true });
+  it("names the branch merged into the deployed one", () => {
+    const merge = {
+      short_message: "Merge branch 'video-in-chat'",
+      message: "Merge branch 'video-in-chat'\n\n# Conflicts:\n#\tsrc/locales/es.json",
+    };
+    expect(describe(merge)).toMatchObject({
+      title: "Merged video-in-chat",
+      mergedBranch: "video-in-chat",
+      isBranchSync: false,
+    });
+    expect(describe({ short_message: "Merge branch 'feature' into main" })).toMatchObject({
+      mergedBranch: "feature",
+    });
+  });
+
+  it("flags the deployed branch merged into another one", () => {
+    for (const subject of [
+      "Merge branch 'main' into feature",
+      "Merge branch 'main' of github.com:org/repo",
+      "Merge remote-tracking branch 'origin/main'",
+      "Merge branch 'other' into feature",
+    ]) {
+      expect(describe({ short_message: subject })).toMatchObject({
+        isBranchSync: true,
+        mergedBranch: null,
+      });
+    }
   });
 
   it("falls back to the full message, then the revision", () => {
-    expect(describeCommit(commit({ message: "Subject\n\nBody" })).title).toBe("Subject");
-    expect(describeCommit(commit({})).title).toBe("abc1234def");
+    expect(describe({ message: "Subject\n\nBody" }).title).toBe("Subject");
+    expect(describe({}).title).toBe("abc1234def");
   });
 });
 
