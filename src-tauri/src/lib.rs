@@ -20,6 +20,14 @@ use state::AppState;
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
     tauri::Builder::default()
+        // Must be registered first. macOS sometimes launches a new copy instead
+        // of activating the running one (e.g. on a notification click): that
+        // copy exits right away and the running one opens its panel.
+        .plugin(tauri_plugin_single_instance::init(|app, _args, _cwd| {
+            // Called from a background task; window work belongs on the main thread.
+            let handle = app.clone();
+            let _ = app.run_on_main_thread(move || tray::show_main_window(&handle));
+        }))
         .plugin(tauri_plugin_opener::init())
         .plugin(tauri_plugin_updater::Builder::new().build())
         .plugin(tauri_plugin_process::init())
