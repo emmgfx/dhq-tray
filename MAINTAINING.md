@@ -73,6 +73,7 @@ Builds are Apple silicon only (`darwin-aarch64`). Supporting Intel needs `--targ
 - **Notifications go through `mac-usernotifications` directly.** `notify-rust` dropped them whenever the main run loop was busy at that instant (`Mainthread not running`). The legacy NSUserNotification API accepts notifications but no longer shows them.
 - **The panel hides the whole app (`NSApp hide`)** when it closes. Otherwise macOS keeps treating the app as frontmost and suppresses notification banners.
 - **`LSUIElement` in `src-tauri/Info.plist`** keeps the app out of the Dock even when a notification click activates it.
+- **Single instance (`tauri-plugin-single-instance`).** A notification click sometimes made macOS launch a second copy instead of activating the running one (two menu bar icons). The new copy now exits at startup and the running one opens its panel; the clicked deployment is not passed along, since macOS delivers the click to the copy that exits.
 - **Window positioning is custom** (`tray.rs`), not `tauri-plugin-positioner`, which misplaces the panel with displays of different scale (Retina + 1x).
 - **DeployHQ's API docs are not always right.** The deployment `duration` is documented as a string but arrives as a number of seconds, and several fields can be `null`. Deserialization is lenient on purpose (`null_as_default`, `seconds_from_number_or_string`) and covered by tests.
 
